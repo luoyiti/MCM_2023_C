@@ -1,0 +1,15 @@
+# Core scientific stack
+numpy>=1.24
+pandas>=2.0
+matplotlib>=3.7
+scipy>=1.10
+scikit-learn>=1.3
+openpyxl>=3.1
+
+# TensorFlow (macOS-friendly)
+# On Apple Silicon (arm64) Macs, use tensorflow-macos and tensorflow-metal for acceleration
+tensorflow-macos>=2.13; sys_platform == "darwin"
+tensorflow-metal>=1.0; sys_platform == "darwin" and platform_machine == "arm64"
+
+# Fallback for non-macOS environments (ignored on macOS due to markers)
+tensorflow>=2.13; sys_platform != "darwin"
