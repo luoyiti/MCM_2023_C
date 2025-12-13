@@ -24,6 +24,7 @@ def _words_to_array(words):
 def _compute_feedback_vectorized(guess_arr, answers_arr):
     """
     向量化计算单个 guess 对所有 answers 的反馈编码。
+    只处理灰块（gray）反馈，取消对黄块和绿块的推理。
     guess_arr: shape (5,) uint8
     answers_arr: shape (N, 5) uint8
     返回: shape (N,) int32，每个值 0-242
@@ -31,22 +32,19 @@ def _compute_feedback_vectorized(guess_arr, answers_arr):
     n = answers_arr.shape[0]
     feedback = np.zeros(n, dtype=np.int32)
     
-    # 逐位计算
+    # 逐位计算，只判断是否为灰块
     for pos in range(5):
         g = guess_arr[pos]
         a = answers_arr[:, pos]
         
-        # green: 位置和字母都对
-        is_green = (a == g)
-        
-        # yellow: 字母在答案中但不在这个位置
-        # 简化处理：检查 guess[pos] 是否在 answer 的任意位置
+        # 只判断是否为灰块（字母不在答案中）
+        # 简化处理：检查 guess[pos] 是否不在 answer 的任意位置
         is_in_answer = np.any(answers_arr == g, axis=1)
-        is_yellow = is_in_answer & ~is_green
+        is_gray = ~is_in_answer
         
-        # 编码: green=2, yellow=1, gray=0
-        pos_feedback = np.where(is_green, 2, np.where(is_yellow, 1, 0))
-        feedback = feedback * 3 + pos_feedback
+        # 编码: gray=1, 其他=0（简化为二进制，只关心灰块）
+        pos_feedback = np.where(is_gray, 1, 0)
+        feedback = feedback * 2 + pos_feedback  # 改为二进制编码
     
     return feedback
 
@@ -365,6 +363,7 @@ def optimal_rule_according_to_entropy(true_word, words_5):
     """
     模拟 Wordle 游戏：
     选择一个根据熵值计算的最优猜测词。
+    信息熵优先策略时，不再考虑一定符合黄色、绿色规则，从而能尽快的降低整体熵
     """
     # 初始化
     yellow_info = {}           # {letter: [forbidden_positions]}
@@ -408,8 +407,8 @@ def optimal_rule_according_to_entropy(true_word, words_5):
                 gray_letters.add(guess_char)
         
         # 过滤候选词
-        words_now = fit_green(accept_word, words_now)
-        words_now = fit_yellow(yellow_info, words_now)
+        # words_now = fit_green(accept_word, words_now)
+        # words_now = fit_yellow(yellow_info, words_now)
         words_now = fit_gray(gray_letters, yellow_letters, green_letters, words_now)
         
         # 移除已经猜过的词
@@ -420,9 +419,12 @@ def optimal_rule_according_to_entropy(true_word, words_5):
         if not words_now:
             return 7  # 没有候选词了，失败
         
-        # 计算每个候选词的熵值，并选择熵值最大的词作为下一个猜测
+        # 计算每个候选词的熵值，选择前 10% 熵值最高的词中随机一个
         entropy_values = {word: calculate_entropy(word, words_now) for word in words_now}
-        guessed_word = max(entropy_values, key=entropy_values.get)
+        sorted_words = sorted(entropy_values, key=entropy_values.get, reverse=True)
+        top_n = max(1, int(len(sorted_words) * 0.1))
+        candidates = sorted_words[:top_n]
+        guessed_word = random.choice(candidates)
     
     return 7
 
