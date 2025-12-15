@@ -1,0 +1,52 @@
+======================================================================
+TabNet Regression Model - Prediction Report
+Generated: 2025-12-15 15:14:07
+======================================================================
+
+## Model Configuration
+----------------------------------------
+Model: TabNetRegressor
+n_d / n_a: 24 / 24
+n_steps: 4
+gamma: 1.5
+lambda_sparse: 1e-4
+mask_type: entmax
+Optimizer: Adam (lr=0.01, weight_decay=1e-4)
+Max epochs: 1000, Patience: 100
+
+## Cross-Validation Results (5-Fold)
+----------------------------------------
+RMSE:  0.3578 ± 0.0664
+MAE:   0.2601 ± 0.0318
+R²:    0.3782 ± 0.1140
+
+## Per-Fold Metrics
+----------------------------------------
+Fold   RMSE         MAE          R²          
+1      0.4060       0.3117       0.3689      
+2      0.3031       0.2493       0.4217      
+3      0.3263       0.2293       0.4696      
+4      0.2902       0.2298       0.4685      
+5      0.4636       0.2803       0.1626      
+
+## Top 10 Most Important Features
+----------------------------------------
+ 1. feedback_entropy                    0.0483
+ 2. 4_try_simulate_random               0.0456
+ 3. position_rarity                     0.0334
+ 4. 6_try_simulate_entropy              0.0320
+ 5. 3_try_simulate_entropy              0.0319
+ 6. 6_try_simulate_freq                 0.0311
+ 7. 7_try_simulate_random               0.0309
+ 8. positional_freq_min                 0.0308
+ 9. scrabble_score                      0.0297
+10. 3_try_simulate_freq                 0.0288
+
+## Model Interpretation
+----------------------------------------
+R² Interpretation: Limited - Consider feature engineering or alternative models
+Average Prediction Error (MAE): 0.2601
+
+======================================================================
+End of Report
+======================================================================
