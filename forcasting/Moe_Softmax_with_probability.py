@@ -22,7 +22,6 @@ MoE (Mixture of Experts) + MLP + Dirichlet 概率分布预测脚本
 输出目录：
     moe_dirichlet_output/ - 包含预测结果CSV、可视化图表、JSON报告等
 
-作者：基于 Moe_Softmax.py 改编
 ================================================================================
 """
 
@@ -41,12 +40,13 @@ from sklearn.metrics import r2_score
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.spatial.distance import jensenshannon
 from scipy.special import gammaln
+import argparse
 
 # 设置中文字体
 plt.rcParams['font.family'] = 'Heiti TC'
 
 # ---------------- 全局配置 ----------------
-DATA_PATH = "../data/mcm_processed_data.csv"
+DATA_PATH = "./data/mcm_processed_data.csv"
 N_COL = "number_of_reported_results"
 OUTPUT_DIR = "moe_dirichlet_output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -126,19 +126,19 @@ DIST_COLS = [
 # ================================================================================
 # 训练超参数配置
 # ================================================================================
-LR = 5e-3
+LR = 1e-3
 WEIGHT_DECAY = 1e-4
 MAX_EPOCHS = 500
-PATIENCE = 50
-WEIGHT_MODE = "sqrt"
+PATIENCE = 60
+WEIGHT_MODE = "log1p"
 
 # ================================================================================
 # MoE 超参数配置
 # ================================================================================
-NUM_EXPERTS = 2
-HIDDEN_SIZE = 64
+NUM_EXPERTS = 4
+HIDDEN_SIZE = 256
 TOP_K = 1
-AUX_COEF = 1e-3
+AUX_COEF = 5e-4
 
 # ================================================================================
 # Dirichlet 相关超参数
@@ -610,6 +610,23 @@ def evaluate(model, X_test: np.ndarray, P_test: np.ndarray) -> tuple[dict, dict]
 
 
 # ================================================================================
+# 快速验证指标（无采样，适用于超参搜索）
+# ================================================================================
+def quick_val_metrics(model, X_val: np.ndarray, P_val: np.ndarray) -> dict:
+    """更快的验证评估：跳过CI采样，仅对均值分布做度量。"""
+    model.eval()
+    with torch.no_grad():
+        Xv = torch.tensor(X_val, device=DEVICE)
+        p_hat, _, _ = model(Xv, train=False)
+        P_pred = p_hat.cpu().numpy()
+    mae = float(np.mean(np.abs(P_pred - P_val)))
+    js = float(np.mean([jensenshannon(P_val[i], P_pred[i]) for i in range(len(P_val))]))
+    eps = 1e-12
+    kl = float(np.mean(np.sum(P_val * (np.log(P_val + eps) - np.log(P_pred + eps)), axis=1)))
+    return {"mae": mae, "js_mean": js, "kl": kl}
+
+
+# ================================================================================
 # 保存预测结果
 # ================================================================================
 def save_predictions(results: dict, path: str) -> None:
@@ -1029,10 +1046,14 @@ JSON报告: {OUTPUT_DIR}/report.json
 # 主函数
 # ================================================================================
 def main():
+    parser = argparse.ArgumentParser(description="Dirichlet MoE with probability output")
+    parser.add_argument("--search", action="store_true", help="运行超参数搜索并用最佳参数产出完整结果")
+    parser.add_argument("--trials", type=int, default=0, help="随机试验次数（0使用预定义网格）")
+    args = parser.parse_args()
+
     set_seed()
     print(f"设备: {DEVICE}")
     print(f"数据路径: {DATA_PATH}")
-    print(f"Dirichlet MoE 配置: num_experts={NUM_EXPERTS}, hidden_size={HIDDEN_SIZE}, k={TOP_K}")
 
     # 加载数据
     (
@@ -1045,40 +1066,105 @@ def main():
     print(f"验证集: {X_val.shape[0]} 样本")
     print(f"测试集: {X_test.shape[0]} 样本")
 
-    # 计算样本权重
+    def run_once(config: dict):
+        global LR, WEIGHT_DECAY, MAX_EPOCHS, PATIENCE, WEIGHT_MODE
+        global NUM_EXPERTS, HIDDEN_SIZE, TOP_K, AUX_COEF
+
+        # 备份
+        _bk = (LR, WEIGHT_DECAY, MAX_EPOCHS, PATIENCE, WEIGHT_MODE,
+               NUM_EXPERTS, HIDDEN_SIZE, TOP_K, AUX_COEF)
+
+        try:
+            LR = config.get("lr", LR)
+            WEIGHT_DECAY = config.get("weight_decay", WEIGHT_DECAY)
+            MAX_EPOCHS = config.get("max_epochs", MAX_EPOCHS)
+            PATIENCE = config.get("patience", PATIENCE)
+            WEIGHT_MODE = config.get("weight_mode", WEIGHT_MODE)
+            NUM_EXPERTS = config.get("num_experts", NUM_EXPERTS)
+            HIDDEN_SIZE = config.get("hidden_size", HIDDEN_SIZE)
+            TOP_K = config.get("top_k", TOP_K)
+            AUX_COEF = config.get("aux_coef", AUX_COEF)
+
+            Wtr = torch.tensor(make_weights_from_N(N_train, WEIGHT_MODE), device=DEVICE) if N_train is not None else None
+            Wva = torch.tensor(make_weights_from_N(N_val, WEIGHT_MODE), device=DEVICE) if N_val is not None else None
+
+            model, info = train_dirichlet_moe(X_train, P_train, X_val, P_val, Wtr, Wva)
+            quick = quick_val_metrics(model, X_val, P_val)
+            return model, info, quick
+        finally:
+            (LR, WEIGHT_DECAY, MAX_EPOCHS, PATIENCE, WEIGHT_MODE,
+             NUM_EXPERTS, HIDDEN_SIZE, TOP_K, AUX_COEF) = _bk
+
+    if args.search:
+        # 预定义小网格，控制时间成本
+        grid = []
+        for lr in [1e-3, 5e-4, 3e-4]:
+            for hidden in [128, 256]:
+                for experts in [4, 6]:
+                    for weight_mode in ["sqrt", "log1p"]:
+                        grid.append({
+                            "lr": lr,
+                            "hidden_size": hidden,
+                            "num_experts": experts,
+                            "top_k": 1,
+                            "aux_coef": 5e-4,
+                            "weight_decay": 1e-4,
+                            "max_epochs": 250,
+                            "patience": 40,
+                            "weight_mode": weight_mode,
+                        })
+
+        best = None
+        best_model = None
+        print(f"开始超参搜索，共 {len(grid)} 组...")
+        for i, cfg in enumerate(grid, 1):
+            print(f"\n[Search] Trial {i}/{len(grid)}: {cfg}")
+            model, info, quick = run_once(cfg)
+            key = info.get("best_val_loss", float("inf"))
+            print(f"[Search] val_loss={key:.6f}, quick_js={quick['js_mean']:.6f}, quick_mae={quick['mae']:.6f}")
+            if (best is None) or (key < best[0] - 1e-8) or (abs(key - best[0]) < 1e-8 and quick["js_mean"] < best[2]["js_mean"]):
+                best = (key, cfg, quick)
+                best_model = model
+
+        assert best is not None
+        print(f"\n[Search] 最优配置: {best[1]} with val_loss={best[0]:.6f}, js={best[2]['js_mean']:.6f}")
+
+        # 使用最优配置重新完整训练并在测试集产出结果
+        cfg = best[1].copy()
+        cfg.update({"max_epochs": MAX_EPOCHS, "patience": max(PATIENCE, 60)})
+        model, info, _ = run_once(cfg)
+
+        # 测试集评估与产出
+        results, metrics = evaluate(model, X_test, P_test)
+        save_predictions(results, os.path.join(OUTPUT_DIR, "dirichlet_moe_predictions.csv"))
+        plot_training_history(info, os.path.join(OUTPUT_DIR, "training_history.png"))
+        plot_alpha0_distribution(results["alpha0"], os.path.join(OUTPUT_DIR, "alpha0_distribution.png"))
+        sample_indices = np.random.choice(len(P_test), size=min(10, len(P_test)), replace=False).tolist()
+        plot_predictions_with_ci(P_test, results, sample_indices, os.path.join(OUTPUT_DIR, "predictions_with_ci.png"))
+        coverage_stats = plot_ci_coverage(P_test, results, os.path.join(OUTPUT_DIR, "ci_coverage.png"))
+        plot_error_vs_confidence(P_test, results, os.path.join(OUTPUT_DIR, "error_vs_confidence.png"))
+        plot_comprehensive_summary(P_test, results, metrics, info, os.path.join(OUTPUT_DIR, "comprehensive_summary.png"))
+        write_report(metrics, info, coverage_stats, os.path.join(OUTPUT_DIR, "report.json"))
+        generate_summary_report(metrics, info, coverage_stats, OUTPUT_DIR)
+        print(f"\n完成：使用最优参数训练并输出结果到 {OUTPUT_DIR}/")
+        return
+
+    # 默认：按当前全局配置直接训练并产出
+    print(f"Dirichlet MoE 配置: num_experts={NUM_EXPERTS}, hidden_size={HIDDEN_SIZE}, k={TOP_K}")
     Wtr = torch.tensor(make_weights_from_N(N_train, WEIGHT_MODE), device=DEVICE) if N_train is not None else None
     Wva = torch.tensor(make_weights_from_N(N_val, WEIGHT_MODE), device=DEVICE) if N_val is not None else None
-
-    # 训练模型
     model, info = train_dirichlet_moe(X_train, P_train, X_val, P_val, Wtr, Wva)
-    
-    # 评估模型
     results, metrics = evaluate(model, X_test, P_test)
-
-    # 保存预测结果
     save_predictions(results, os.path.join(OUTPUT_DIR, "dirichlet_moe_predictions.csv"))
-
-    # 可视化
     plot_training_history(info, os.path.join(OUTPUT_DIR, "training_history.png"))
     plot_alpha0_distribution(results["alpha0"], os.path.join(OUTPUT_DIR, "alpha0_distribution.png"))
-    
-    # 随机选择样本绘制带CI的预测
     sample_indices = np.random.choice(len(P_test), size=min(10, len(P_test)), replace=False).tolist()
     plot_predictions_with_ci(P_test, results, sample_indices, os.path.join(OUTPUT_DIR, "predictions_with_ci.png"))
-    
-    # CI 覆盖率分析
     coverage_stats = plot_ci_coverage(P_test, results, os.path.join(OUTPUT_DIR, "ci_coverage.png"))
-    
-    # 误差 vs 置信度
     plot_error_vs_confidence(P_test, results, os.path.join(OUTPUT_DIR, "error_vs_confidence.png"))
-    
-    # 综合总结
     plot_comprehensive_summary(P_test, results, metrics, info, os.path.join(OUTPUT_DIR, "comprehensive_summary.png"))
-
-    # 保存报告
     write_report(metrics, info, coverage_stats, os.path.join(OUTPUT_DIR, "report.json"))
     generate_summary_report(metrics, info, coverage_stats, OUTPUT_DIR)
-
     print(f"\n完成：Dirichlet MoE 分布预测已输出到 {OUTPUT_DIR}/")
 
 
