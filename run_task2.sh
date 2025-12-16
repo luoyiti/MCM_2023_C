@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# MCM 2023 Problem C - 任务2: EERIE 预测运行脚本
+# 
+# 使用说明：
+#   chmod +x run_task2.sh
+#   ./run_task2.sh
+
+echo "========================================="
+echo "MCM 2023 任务2 - EERIE 分布预测"
+echo "========================================="
+echo ""
+
+# 检查 conda 环境
+if ! command -v conda &> /dev/null; then
+    echo "❌ 错误：未找到 conda"
+    echo "请先运行: ./setup_env.sh"
+    exit 1
+fi
+
+# 检查 mcm2023 环境是否存在
+if ! conda env list | grep -q "^mcm2023 "; then
+    echo "❌ 错误：未找到 mcm2023 环境"
+    echo "请先运行: ./setup_env.sh"
+    exit 1
+fi
+
+echo "✓ 环境检查通过"
+echo "✓ 使用环境: mcm2023 (Python 3.11)"
+echo ""
+
+# 运行预测（使用 conda run 确保在正确环境中）
+echo "运行预测脚本..."
+echo "⏳ 预计时间：1-3 分钟"
+echo ""
+
+cd task2_distribution_prediction
+conda run -n mcm2023 --no-capture-output python predict_eerie.py
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo "========================================="
+    echo "✓ 任务2 完成！"
+    echo "========================================="
+    echo "输出文件:"
+    echo "  - CSV/TXT: results/task2/"
+    echo "  - PNG图片: pictures/task2/"
+    echo "========================================="
+else
+    echo ""
+    echo "❌ 预测失败，请检查错误信息"
+    exit 1
+fi
