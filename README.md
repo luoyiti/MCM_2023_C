@@ -1,25 +1,15 @@
 # MCM 2023 Problem C - Wordle 数据分析与预测
 
-本项目是针对 **2023 MCM (Mathematical Contest in Modeling) Problem C: Predicting Wordle Results** 的解决方案代码仓库。项目包含：
-- **Q1**：对 Wordle 每日 “Number of reported results” 的时间序列建模与区间预测（含变点解释与诊断）。
-- **Q2**：单词属性（词频/结构/语义/熵/仿真与RL信号）与玩家行为（Hard Mode、平均尝试次数）的关联分析与可解释建模。
-- **Q3**：对单词的 **1~6 次猜中 + 失败(7+)** 的概率分布进行建模预测，并以特定单词（如 “EERIE”）作为示例输出。
+> **2023 数学建模竞赛 (MCM) Problem C: Predicting Wordle Results**
+> 
+> 本项目提供完整的时间序列预测、单词属性分析和成绩分布预测解决方案。
 
-题目原文见 `archives/2023_MCM_Problem_C.pdf`。
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-## 🎯 与题目 Problem C 的对应关系（你在做什么）
+---
 
-- **[预测“报告人数”及不确定性]**
-  - 对应题目要求的时间趋势建模、短期预测（含区间/置信带）与可解释分析。
-  - 代码主入口：`Q1/q1_final_clean.py`（输出 `Q1/results/` 下的一系列图表与报告）。
-- **[解释“难度/行为差异”来源]**
-  - 通过单词属性工程（字母结构、词频、语义、信息熵、仿真策略、强化学习策略信号等）解释 Hard Mode 占比与难度波动。
-  - 代码主入口：`单词属性/main.py`（输出 `单词属性/analysis_report.txt` 及多张热力图）。
-- **[预测“猜测次数分布”]**
-  - 对应题目要求的分布级预测（1~6 次+失败）。
-  - 代码主入口：`forcasting/Moe_Softmax.py`（输出 `forcasting/moe_output/` 目录）。
-
-## 📂 项目结构目录
+## 📁 项目结构（重构版 - 2025-12-16）
 
 ```
 MCM_2023_C/
@@ -89,77 +79,29 @@ MCM_2023_C/
 └── requirements.txt            # Python 依赖
 ```
 
-## 🚀 核心方法与模型
+---
 
-### 1. 报告人数的时间序列预测 (Q1)
-针对每日报告结果数量随时间的变化趋势，采用了稳健的**时间序列集成模型**（`Q1/q1_final_clean.py`）：
-- **变点检测 (PELT)**：使用 `ruptures` 库检测时间序列中的结构性突变点（Changepoint），防止未来信息泄露。
-- **滚动交叉验证 (Rolling CV)**：每一折 **独立检测变点并构建外生变量**（避免泄露）。
-- **候选模型与集成**：多个 SARIMA/SARIMAX 候选通过 CV 评估；集成时采用 **逆方差加权（IVW）** 合并均值与方差。
-- **不确定性**：统一输出 **90% CI（alpha=0.10）**；在 log 空间合并区间，避免非线性回变换导致的覆盖率偏差。
-- **数据处理**：`log1p` 做方差稳定；预测回原尺度使用 **Duan smearing** 修正对数回变换偏差。
-- **解释与诊断**：自动生成 changepoint/周末效应/节假日效应/趋势变化等解释性报告与残差诊断图。
+## 🚀 快速开始
 
-### 2. 单词属性与难度分析 (Q2)
-探究单词属性（如词频、词性、字母结构）对玩家表现的影响（`单词属性/`）：
-- **特征工程**：提取 Zipf 词频、词性 (POS Tagging)、字母熵、重复字母模式等特征。
-- **Hard Mode 分析（RQ1）**：
-  - OLS 检验线性相关性；
-  - Lasso 做稀疏特征筛选；
-  - 引入 Hard Mode 比例的滞后项（惯性效应）并与属性重要性对比。
-- **难度建模（RQ2）**：以 `avg_guesses`（由分布加权得到的平均尝试次数）为目标，比较 Linear/RF/XGBoost/SVR，并输出 RF 特征重要性；使用 KMeans 将分布聚类为 Easy/Medium/Hard。
-- **可视化**：热力图（RQ1/RQ2）、模型对比图、重要性图等。
-
-### 3. 猜测次数分布预测 (Q3)
-预测特定单词在 1-7 次尝试中被猜出的百分比分布（`forcasting/Moe_Softmax.py`）：
-- **MoE (Mixture of Experts)**：构建混合专家网络，包含多个 **MLP + Softmax** 层的专家子网络。
-- **门控机制 (Gating Network)**：根据输入特征动态路由样本到最合适的专家（Top-K Routing）。
-- **训练目标**：软标签交叉熵（分布监督），并加上负载均衡辅助损失防止“专家塌陷”。
-- **评估指标**：MAE / KL / JS / CosSim / R² / MaxError 等（见 `moe_output/moe_report.json` 与 `moe_summary_report.txt`）。
-
-## 🧾 数据说明
-
-### 1) `data/mcm_processed_data.csv`（Q3 与特征工程的核心表）
-
-该表以“每日单词”为样本（约 358 行），包含：
-- **[基础字段]**
-  - `date`, `contest_number`, `word`
-- **[人数相关]**
-  - `number_of_reported_results`, `number_in_hard_mode`
-- **[真实分布标签]**
-  - `1_try`, `2_tries`, `3_tries`, `4_tries`, `5_tries`, `6_tries`, `7_or_more_tries_x`（注意：部分脚本会将百分比归一化为和为 1）
-- **[属性/特征列（节选）]**
-  - 词频与结构：`Zipf-value`, `scrabble_score`, `has_common_suffix`, `num_rare_letters`, `max_consecutive_vowels`...
-  - 熵相关：`letter_entropy`, `feedback_entropy`, `position_self_entropy`...
-  - 语义相关：`semantic_distance`, `semantic_distance_to_center`, `semantic_neighbors_count`...
-  - 仿真/强化学习相关：`*_simulate_*`, `rl_*_training`, `rl_expected_steps_*`...
-
-### 2) Q1 的时间序列输入（Excel）
-
-`Q1/q1_final_clean.py` 默认从 `--input` 读取一个 Excel（`pd.read_excel(..., header=1)`），并期望包含至少：
-- `Date`
-- `Number of  reported results`
-
-### 3) `单词属性/` 下的数据
-
-- **[原始/中间数据]** `单词属性/data_with_features.xlsx`
-- **[最终数据]** `单词属性/data_final.csv`：由 `enrich_features.py` 生成，额外添加：
-  - `word_freq`（Zipf 词频）
-  - `pos_tag` 以及 `is_noun/is_verb/is_adj`
-
-## 🛠️ 环境依赖与安装
-
-项目基于 Python 3.9+ 开发。建议使用虚拟环境运行。
+### 环境设置
 
 ```bash
+# 创建 conda 环境（推荐 Python 3.11）
+conda create -n mcm2023 python=3.11 -y
+conda activate mcm2023
+
 # 安装依赖
 pip install -r requirements.txt
+```
 
-# 运行完整项目时的常用额外依赖（按需安装）
-# Q1: ruptures, holidays, statsmodels
-# Q2: seaborn, xgboost, nltk, wordfreq
-# Q3: torch
-pip install ruptures holidays statsmodels seaborn xgboost nltk wordfreq torch
+### 一键运行
+
+```bash
+# 任务1：预测 2023-03-01 报告人数 + Hard Mode 分析
+./run_task1.sh
+
+# 任务2：预测 EERIE 的成绩分布
+./run_task2.sh
 ```
 
 **主要依赖库：**
@@ -170,42 +112,167 @@ pip install ruptures holidays statsmodels seaborn xgboost nltk wordfreq torch
 - `ruptures`, `holidays` (变点检测与节假日处理)
 - `nltk`, `wordfreq` (NLP特征提取)
 
-## 📖 使用指南
+---
 
-### 运行 Q1 时间序列预测（输出预测 + 解释报告 + 诊断图）
-```bash
-python Q1/q1_final_clean.py --input <你的数据路径.xlsx>
+## 🎯 题目要求与解决方案
+
+| 题目要求 | 解决方案 | 实现文件 |
+|---------|---------|---------|
+| **Q1a**: 预测 2023-03-01 报告人数（含置信区间） | SARIMA 时间序列集成 + 变点检测 | `task1_reporting_volume/q1_final_clean.py` |
+| **Q1b**: 分析单词属性对 Hard Mode 的影响 | OLS + Lasso + 滞后特征分析 | `task1_reporting_volume/analysis_hard_mode.py` |
+| **Q2**: 预测 EERIE 的 1-7 次猜中分布 | Random Forest（79特征） | `task2_distribution_prediction/predict_eerie.py` |
+
+---
+
+## 🔬 核心技术方案
+
+### 📊 任务1：时间序列预测（报告人数）
+
+**关键发现**：
+- 🔴 **变点检测**：2022-10-05 出现结构性断裂，报告人数从 11.2万/天 → 2.6万/天（下降 77.1%）
+- 📈 **预测结果**：2023-03-01 点预测 **20,181 人**，90% CI: [11,646, 34,971]
+- 📊 **模型性能**：
+  - CV覆盖率: 97.8% (理想: 95%)
+  - Walk-Forward h=60天覆盖率: **97.9%** (目标: ~90%)
+  - Walk-Forward h=30天覆盖率: **96.7%**
+
+**技术栈**：
+```python
+✓ 变点检测 (PELT)          # 在log空间检测趋势突变
+✓ SARIMA(1,1,2)x(1,0,1,7)  # 捕捉周周期性（7天）
+✓ 滚动交叉验证              # 避免数据泄露
+✓ 集成学习 (IVW)           # 逆方差加权
+✓ 全概率方差公式            # Law of Total Variance（预测区间）
+✓ Duan Smearing            # 对数回变换修正
+✓ 单词属性特征              # lag0 + lag1 共10个特征
 ```
 
-运行后典型产物位于 `Q1/results/`，包括：
-- **[文本报告]** `explanation_report.txt`, `diagnostic_report.txt`, `unified_comparison_report.txt`
-- **[图表]** `1_weekday_effects.png`, `2_changepoint.png`, `3_diagnostics.png`, `4_factor_importance.png`, `6_three_way_comparison_*.png`
-- **[模型/结果]** `ensemble_result.pkl`
+**输出文件**：
+- `results/task1/explanation_report.txt` - 解释性报告
+- `results/task1/diagnostic_report.txt` - 模型诊断
+- `pictures/task1/1_weekday_effects.png` - 工作日效应
+- `pictures/task1/2_changepoint.png` - 变点可视化
+- `pictures/task1/3_diagnostics.png` - 残差诊断
 
-### （可选）运行 Q1 三模型统一对比：Ensemble vs Prophet vs Chronos
+### 🎯 任务1（改进版）：时间序列预测 + 单词属性特征
 
-```bash
-python Q1/model_comparison.py --input <你的数据路径.xlsx>
+**核心改进**（2025-12-17 最新）：
+- 🆕 **添加当天单词属性**（lag0_*）：5个特征
+  - `lag0_mean_simulate_freq` - 当天单词模拟平均尝试次数
+  - `lag0_letter_entropy` - 当天单词字母熵
+  - `lag0_mean_simulate_random` - 当天单词随机策略尝试次数
+  - `lag0_has_common_suffix` - 当天单词是否有常见后缀
+  - `lag0_letter_freq_mean` - 当天单词字母平均频率
+  
+- 🆕 **添加前一天单词属性**（lag1_*）：5个特征
+  - `lag1_mean_simulate_freq` - 前一天单词模拟平均尝试次数
+  - `lag1_letter_entropy` - 前一天单词字母熵
+  - `lag1_mean_simulate_random` - 前一天单词随机策略尝试次数
+  - `lag1_has_common_suffix` - 前一天单词是否有常见后缀
+  - `lag1_letter_freq_mean` - 前一天单词字母平均频率
+  
+- 🔧 **特征集扩展**：原 3 个 → 现 13 个
+  - 基础特征: `regime`, `is_weekend`, `is_holiday`
+  - 当天单词: 5个 lag0_* 特征（贡献 31.2%）
+  - 前一天单词: 5个 lag1_* 特征（贡献 22.7%）
+
+- 🐛 **关键Bug修复**：
+  - ✅ 修复 regime 特征在测试集中的设置逻辑（基于绝对位置）
+  - ✅ 修复 ensemble 方差合并公式（从估计量方差→预测方差）
+  - ✅ 使用全概率公式: `Var(Y) = E[Var(Y|Model)] + Var[E(Y|Model)]`
+  - ✅ Walk-Forward 覆盖率从 **68.3% → 97.9%** ⭐
+
+**Hard Mode 影响因素**：
+- 📌 **滞后效应占主导**：前2-3天的 Hard Mode 比例贡献 **98%+ 重要性**
+- 🔤 **单词属性影响微弱**：OLS R² = 0.23，Lasso 仅保留 20/79 特征
+
+**输出文件**：
+- `pictures/task1/Feature_Importance_Hard_Mode_Ratio_Lag_vs_Attributes.png`
+
+### 🎲 任务2：成绩分布预测（EERIE）
+
+**项目结构调整**：
+- 🔬 **`feature_engineering/`**：独立的特征工程模块（包含 AutoEncoder 降维）
+- 📂 **`experiments/`**：探索性分析（Lasso, XGBoost, MLP 等实验）
+- ⭐ **`models/`**：实际解决方案（Random Forest 训练脚本）
+
+**数据驱动**：
+- 📊 **训练数据**：358 个单词 × 79 个特征（来自 `feature_engineering/`）
+- 🎯 **预测目标**：7 个类别（1-6 tries + 7+ tries）
+
+**特征工程**（79 维）：
+```
+字母结构: num_rare_letters, has_double_letter, max_consecutive_vowels...
+词频: Zipf-value, letter_freq_mean, positional_freq_mean...
+熵: letter_entropy, feedback_entropy, position_self_entropy...
+语义: semantic_distance, semantic_neighbors_count...
+模拟: *_simulate_random, *_simulate_freq (来自 wordle_game_simulate.py)
+强化学习: rl_*_try_* (来自 reinforcement_learning_wordle_game.py)
+降维: autoencoder_value (来自 AutoEncoder.ipynb)
 ```
 
-说明：
-- **Prophet/Chronos 为可选依赖**，未安装会自动跳过。
-- Chronos 需要额外依赖并会加载预训练模型（运行时间与环境有关）。
+**模型选择**：Random Forest（基于实验对比选出）
 
-### 运行 Q2 单词属性分析
-首先生成特征数据，然后运行主分析脚本：
-```bash
-python 单词属性/enrich_features.py  # 生成 data_final.csv（会触发 NLTK 资源下载）
-python 单词属性/main.py             # 运行综合分析
+**输出文件**：
+- `results/task2/eerie_prediction.csv` - EERIE 预测结果
+- `pictures/task2/eerie_distribution.png` - 分布对比图
+
+---
+
+## 📊 数据说明
+
+### ⭐ 核心数据：`data/mcm_processed_data.csv`
+
+| 类型 | 列数 | 说明 |
+|-----|-----|------|
+| 基础信息 | 3 | `date`, `word`, `contest_number` |
+| 报告人数 | 2 | `number_of_reported_results`, `number_in_hard_mode` |
+| 真实分布 | 7 | `1_try` ~ `7_or_more_tries_x` |
+| 单词特征 | 79 | 字母结构、词频、熵、语义、仿真、RL... |
+
+**⚠️ 重要**：
+- ✅ **CSV 文件**包含真实报告人数（几万人规模）
+- ❌ **Excel 文件**（`backups/2023_MCM_Problem_C_Data.xlsx`）是归一化的百分比数据（0-100）
+
+---
+
+## 🛠️ 技术栈
+
+### 核心依赖
+
+```python
+pandas>=2.0.0         # 数据处理
+numpy>=1.24.0         # 数值计算
+matplotlib>=3.7.0     # 绘图
+seaborn>=0.12.0       # 统计可视化
+scikit-learn>=1.3.0   # 机器学习
+statsmodels>=0.14.0   # 统计模型（SARIMA）
+ruptures>=1.1.0       # 变点检测
+holidays>=0.34        # 节假日数据
+wordfreq>=3.0         # 词频统计
+nltk>=3.8             # NLP 工具
 ```
 
-输出位于 `单词属性/`：
-- **[主报告]** `analysis_report.txt`
-- **[热力图]** `heatmap_rq1_*.png`, `heatmap_rq2_*.png`
+### 可选依赖
 
-### 运行 Q3 分布预测 (MoE)
+```python
+torch>=2.0.0          # 深度学习（用于 MoE 实验）
+xgboost>=2.0.0        # 梯度提升（用于对比实验）
+```
+
+---
+
+## 📖 详细使用说明
+
+### 任务1：报告人数预测
+
 ```bash
-python forcasting/Moe_Softmax.py
+# 方法1：使用 shell 脚本（推荐）
+./run_task1.sh
+
+# 方法2：直接运行 Python
+cd task1_reporting_volume
+conda run -n mcm2023 python run_task1.py
 ```
 
 输出位于 `forcasting/moe_output/`：
@@ -215,46 +282,110 @@ python forcasting/Moe_Softmax.py
 - **[专家分析]** `moe_expert_usage.png`, `moe_expert_mean_distribution_test.png`, `moe_expert_sample_ratio_test.png`
 - **[综合报告]** `moe_comprehensive_summary.png`, `moe_performance_metrics.png`, `moe_aux_loss.png`
 
-### （可选）运行 `forcasting/explore/` 下的基线模型库
+3. **模型文件**（`results/task1/`）：
+   - `ensemble_result.pkl` - 集成模型（可用于后续预测）
 
-该目录提供统一的回归模型（预测 `autoencoder_value`）与分布模型（Linear/MLP-Softmax）对比流水线：
+### 任务2：EERIE 分布预测
 
 ```bash
-python forcasting/explore/run_all_models.py
+# 方法1：使用 shell 脚本（推荐）
+./run_task2.sh
+
+# 方法2：直接运行 Python
+cd task2_distribution_prediction
+conda run -n mcm2023 python predict_eerie.py
 ```
 
-对应数据路径与特征列在 `forcasting/explore/config.py` 中统一配置。
+**输出详情**：
+1. **预测结果**（`results/task2/`）：
+   - `eerie_prediction.csv` - EERIE 的 1-7 次分布概率
+   
+2. **可视化图表**（`pictures/task2/`）：
+   - `eerie_distribution.png` - 预测分布 vs 平均分布对比
 
-## 🧩 特征工程与数据生成（features/）
+---
 
-`features/` 目录与 notebooks 主要用于构造/增强 `data/mcm_processed_data.csv` 的特征列：
-- **[仿真策略特征]** `features/wordle_game_simulate.py`
-  - 通过随机/词频/熵策略模拟，产出 `*_simulate_*` 相关列。
-- **[强化学习策略特征]** `features/reinforcement_learning_wordle_game.py`
-  - A2C 训练与评估，产出 `rl_*`、`rl_expected_steps_*` 等列（部分中间文件默认 gitignore）。
-- **[反馈熵]** `features/feedbackEntropy.py`
-  - 计算在候选词集合下的反馈信息熵 `feedback_entropy`。
-- **[notebooks]** `features/featureEngineering.ipynb`, `features/addOn.ipynb`
-  - 包含语义特征（GloVe）、降维/特征选择（Lasso/PCA/PLS/CCA 等）、特征分组可视化等探索过程。
+## 🔍 项目亮点
 
-## 🧯 常见问题（Troubleshooting）
+### ✨ 方法创新
 
-- **[GloVe 文件缺失]**
-  - `data/glove.6B/` 下的 GloVe 大文件默认被 `.gitignore` 忽略。
-  - 如需运行语义特征相关 notebook，请自行下载 `glove.6B.*d.txt` 并放入该目录。
-- **[NLTK 资源下载失败]**
-  - `单词属性/enrich_features.py` 会下载 `averaged_perceptron_tagger` 与 `universal_tagset`。
-  - 若网络受限，可提前配置 NLTK 数据目录或手动下载。
-- **[字体问题]**
-  - 多处绘图显式使用 `Heiti TC`/`Arial`。若本机无该字体，matplotlib 可能回退或出现中文乱码。
-- **[可选依赖缺失]**
-  - `prophet`/`chronos`/`torch`/`xgboost` 等未安装会导致对应模块无法运行或被跳过。
+1. **变点检测 + 分段建模**
+   - 使用 PELT 算法自动检测时间序列的结构性变化
+   - 避免数据泄露：滚动 CV 中每一折独立检测变点
 
-## 📊 结果示例
+2. **集成学习策略**
+   - 多个 SARIMA 模型通过逆方差加权集成
+   - 在 log 空间合并预测区间，提高覆盖率准确性
 
-- **Q1**: 成功检测到初期热度消退的变点，建立了分段预测模型。
-- **Q2**: 发现词频和元音数量是影响难度的关键因素；"EERIE" 等生僻词会导致猜测分布显著右移。
-- **Q3**: MoE 模型在测试集上表现优于单一 MLP，能更好捕捉不同类型单词（如常见词 vs. 生僻词）的分布特征。
+3. **惯性效应发现**
+   - Hard Mode 使用具有强时间惯性（滞后效应占 98%+）
+   - 单词属性对当天 Hard Mode 比例影响微弱
+
+### 📊 数据工程
+
+1. **特征工程完善**
+   - 79 维单词特征涵盖字母、词频、熵、语义、仿真、RL
+   - 自动化特征计算流程
+
+2. **数据质量保障**
+   - 识别并修复 Excel 归一化数据问题
+   - 使用 CSV 真实数据进行建模
+
+### 🎯 可解释性
+
+1. **自动报告生成**
+   - 变点位置、原因分析
+   - 周末效应、节假日效应量化
+   - 模型性能诊断（残差、覆盖率）
+
+2. **可视化完整**
+   - 每个分析步骤都有对应图表
+   - 图表风格统一，信息清晰
+
+---
+
+## 📝 重要说明
+
+### ⚠️ 数据格式警告
+
+- **Excel 文件**（`backups/2023_MCM_Problem_C_Data.xlsx`）：
+  - 包含的是**归一化的百分比数据**（0-100）
+  - **不是**真实的报告人数
+  - 主要用于特征列的获取
+
+- **CSV 文件**（`data/mcm_processed_data.csv`）：
+  - 包含**真实的报告人数**（几万人规模）
+  - 包含完整的 79 维单词特征
+  - **所有建模都基于此文件**
+
+### 📂 文件组织
+
+- **结果文件**统一存放在 `results/task1/` 和 `results/task2/`
+- **图表文件**统一存放在 `pictures/task1/` 和 `pictures/task2/`
+- **不再有**子文件夹下的重复 `results/` 目录
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+## 📧 联系方式
+
+如有问题，请通过 GitHub Issues 联系。
+
+---
+
+**最后更新**: 2025-12-17  
+**项目状态**: ✅ 生产就绪
 
 ---
 *Created for 2023 MCM Problem C Solution.*
