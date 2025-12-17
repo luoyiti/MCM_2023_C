@@ -13,49 +13,70 @@
 
 ```
 MCM_2023_C/
-├── 📊 data/                      # 数据文件
-│   ├── mcm_processed_data.csv   # ⭐ 主数据（358行 × 92列特征）
-│   └── ...
-│
-├── � feature_engineering/       # ⭐ 独立特征工程模块（新增）
-│   ├── wordle_game_simulate.py  # Wordle 游戏模拟
-│   ├── feedbackEntropy.py       # 反馈熵计算
-│   ├── reinforcement_learning_wordle_game.py  # 强化学习策略
-│   ├── AutoEncoder.ipynb        # 自动编码器降维
-│   └── README.md                # 特征工程文档
-│
-├── �🔮 task1_reporting_volume/    # 任务1：报告人数预测 + Hard Mode分析
-│   ├── q1_final_clean.py        # SARIMA 时间序列 + 滞后特征（改进版）
-│   ├── run_task1.py             # 🚀 任务1主入口
-│   ├── analysis_hard_mode.py    # Hard Mode 影响因素分析
-│   └── style_utils.py           # 可视化工具
-│
-├── 🎯 task2_distribution_prediction/  # 任务2：EERIE 成绩分布预测
-│   ├── models/                  # ⭐ 实际解决方案（核心）
-│   │   └── train_rf_model.py   # Random Forest 训练脚本
-│   ├── experiments/             # 探索性分析（Lasso, XGBoost等）
-│   ├── predict_eerie.py         # 🚀 任务2主入口
-│   ├── compute_eerie_features.py # 单词特征计算
-│   └── README.md                # Task2 详细文档
-│
-├── 🔧 shared/                    # 共享配置和工具
-│   ├── config.py                # 统一路径配置
-│   └── data_loader.py           # 数据加载工具
-│
-├── 📈 results/                   # 输出结果
-│   ├── task1/                   # 任务1输出（报告、模型）
-│   └── task2/                   # 任务2输出（预测结果）
-│
-├── 📸 pictures/                  # 可视化图表
-│   ├── task1/                   # 任务1图表（诊断、因素重要性等）
-│   └── task2/                   # 任务2图表（分布对比等）
-│
-├── 🗄️ backups/                   # 备份数据
-│   └── 2023_MCM_Problem_C_Data.xlsx  # 原始Excel（归一化百分比）
-│
-├── 🏃 run_task1.sh              # 任务1快速运行脚本
-├── 🏃 run_task2.sh              # 任务2快速运行脚本
-└── 📋 requirements.txt          # Python依赖
+├── archives/                   # 竞赛题目归档
+│   ├── 2023_MCM_Problem_C.pdf
+│   └── descriptive_stats_report.txt
+├── Q1/                         # Q1：报告人数时间序列预测与对比
+│   ├── q1_final_clean.py       # 主程序：变点 + 滚动CV + SARIMA集成 + 90% CI
+│   ├── model_comparison.py     # 统一口径对比：Ensemble vs Prophet vs Chronos
+│   ├── viz_report.py           # 诊断/故事化图表与报告生成
+│   └── results/                # 已生成的图表/报告/模型输出
+│       ├── *_weekday_effects.png, *_changepoint.png, *_diagnostics.png  # 诊断图
+│       ├── eda_*.png           # 探索性数据分析图（概览/季节性/波动/分解）
+│       ├── explanation_report.txt, diagnostic_report.txt...  # 文本报告
+│       └── ensemble_result.pkl # 模型结果
+├── 单词属性/                   # Q2：属性-行为/难度分析（Hard Mode / avg guesses）
+│   ├── enrich_features.py      # 为 data_with_features.xlsx 增加词频/词性等特征并导出 data_final.csv
+│   ├── main.py                 # 主入口：依次运行 Hard Mode 分析、难度预测、热力图、EERIE示例预测
+│   ├── data_loader.py          # 数据清洗、分布归一化、avg_guesses、共线性过滤等
+│   ├── analysis_hard_mode.py   # Hard Mode 占比解释（OLS/Lasso/Lag对比）
+│   ├── analysis_difficulty.py  # 难度建模（avg_guesses，多模型竞技场 + RF重要性 + KMeans分级）
+│   ├── analysis_heatmap.py     # RQ1/RQ2 相关性热力图（莫兰迪配色）
+│   ├── predict_eerie.py        # 多输出RF：预测指定单词的分布（若缺词则演示流程）
+│   ├── model_mmoe.py           # MMoE 模型实现
+│   ├── style_utils.py          # 可视化样式工具
+│   ├── data_with_features.xlsx # 原始特征数据
+│   ├── data_final.csv          # 增强后的最终数据
+│   ├── analysis_report.txt     # 分析报告
+│   └── heatmap_*.png           # RQ1/RQ2 相关性热力图（多种配色）
+├── forcasting/                 # Q3：分布预测模型（MoE + Softmax）与基线
+│   ├── Moe_Softmax.py          # MoE 分布预测主脚本（读取 data/mcm_processed_data.csv）
+│   ├── Moe_Softmax_with_probability.py  # 带概率输出的 MoE 变体
+│   ├── moe.py                  # MoE 结构（门控 + 多个MLP+Softmax专家）
+│   ├── moe_tuning.py           # MoE 超参搜索/对比
+│   ├── AutoEncoder.ipynb       # 自编码器实验
+│   ├── moe_output/             # MoE 训练产物
+│   │   ├── moe_softmax_pred_output.csv  # 预测结果
+│   │   ├── moe_report.json, moe_summary_report.txt  # 报告
+│   │   ├── moe_training_history.png, moe_distribution_comparison.png  # 训练图
+│   │   └── moe_expert_*.png    # 专家分析图
+│   └── explore/                # 额外：统一回归/分布基线模型库
+│       ├── run_all_models.py   # 统一运行所有模型
+│       ├── config.py           # 配置文件
+│       ├── forecasting_models.py, distribution_models.py  # 模型库
+│       ├── lasso_forcasting.py, ridge_forcasting.py...  # 各类模型脚本
+│       └── *_results/          # 各模型结果目录
+├── features/                   # 特征工程与仿真/强化学习生成脚本
+│   ├── featureEngineering.ipynb  # 主特征工程 notebook
+│   ├── addOn.ipynb             # 补充特征 notebook
+│   ├── wordle_game_simulate.py # Wordle 策略仿真
+│   ├── reinforcement_learning_wordle_game.py  # A2C 强化学习
+│   └── feedbackEntropy.py      # 反馈熵计算
+├── data/                       # 数据与中间产物
+│   ├── mcm_processed_data.csv  # 核心特征数据（358条样本，55+特征）
+│   ├── reduced_features_train.csv, reduced_features_test.csv  # 降维后特征
+│   ├── lasso_feature_importance.xlsx, lasso_reduced_features_importance.xlsx  # 特征重要性
+│   └── glove.6B/               # GloVe 词向量（大文件，默认被 gitignore）
+├── models/                     # 训练得到的模型/降维器
+│   ├── autoencoder_model.pkl   # 自编码器模型
+│   ├── autoencoder_wordle_tf.keras  # TensorFlow Keras 模型
+│   ├── reduction_models/       # 降维模型
+│   └── wordle_a2c_ckpt/        # A2C 强化学习检查点
+├── util/                       # 可视化工具
+│   └── visualizations.py       # 统一可视化函数
+├── featureEngineering.ipynb    # 根目录特征工程 notebook（备份）
+├── AGENTS.md                   # 项目代理说明
+└── requirements.txt            # Python 依赖
 ```
 
 ---
@@ -83,9 +104,13 @@ pip install -r requirements.txt
 ./run_task2.sh
 ```
 
-**输出**：
-- 📄 CSV/TXT 结果 → `results/task1/` 或 `results/task2/`
-- 📊 PNG 图表 → `pictures/task1/` 或 `pictures/task2/`
+**主要依赖库：**
+- `numpy`, `pandas`, `matplotlib`, `seaborn`, `scipy` (数据处理与可视化)
+- `statsmodels`, `scikit-learn` (统计模型与机器学习)
+- `tensorflow` / `tensorflow-macos` (深度学习/自编码器，macOS 下自动选择)
+- `torch` (深度学习/MoE模型)
+- `ruptures`, `holidays` (变点检测与节假日处理)
+- `nltk`, `wordfreq` (NLP特征提取)
 
 ---
 
@@ -250,17 +275,12 @@ cd task1_reporting_volume
 conda run -n mcm2023 python run_task1.py
 ```
 
-**输出详情**：
-1. **文本报告**（`results/task1/`）：
-   - `explanation_report.txt` - 变点、周末效应、节假日效应分析
-   - `diagnostic_report.txt` - 残差诊断、模型性能指标
-   
-2. **可视化图表**（`pictures/task1/`）：
-   - `1_weekday_effects.png` - 工作日 vs 周末报告人数对比
-   - `2_changepoint.png` - 变点可视化（2022-03-18）
-   - `3_diagnostics.png` - 残差分析、ACF、覆盖率验证
-   - `4_factor_importance.png` - 因素重要性（波动性 97.7%）
-   - `Feature_Importance_Hard_Mode_Ratio_Lag_vs_Attributes.png` - Hard Mode 分析
+输出位于 `forcasting/moe_output/`：
+- **[预测结果]** `moe_softmax_pred_output.csv`, `moe_expert_distribution_summary_test.csv`
+- **[报告]** `moe_report.json`, `moe_summary_report.txt`
+- **[可视化]** `moe_training_history.png`, `moe_distribution_comparison.png`, `moe_error_analysis.png`
+- **[专家分析]** `moe_expert_usage.png`, `moe_expert_mean_distribution_test.png`, `moe_expert_sample_ratio_test.png`
+- **[综合报告]** `moe_comprehensive_summary.png`, `moe_performance_metrics.png`, `moe_aux_loss.png`
 
 3. **模型文件**（`results/task1/`）：
    - `ensemble_result.pkl` - 集成模型（可用于后续预测）
@@ -368,57 +388,82 @@ MIT License
 **项目状态**: ✅ 生产就绪
 
 ---
+*Created for 2023 MCM Problem C Solution.*
 
-## 🔧 技术细节与Bug修复记录
+# 附录
 
-### 重要修复 (2025-12-17)
+```mermaid
+graph LR
+    %% 定义样式
+    classDef input fill:#E3F2FD,stroke:#1565C0,stroke-width:2px;
+    classDef layer fill:#FFECB3,stroke:#FF6F00,stroke-width:2px,rounded;
+    classDef gateBlock fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px;
+    classDef expertBlock fill:#F8BBD0,stroke:#C2185B,stroke-width:2px;
+    classDef operation fill:#E1BEE7,stroke:#6A1B9A,stroke-width:1px,stroke-dasharray: 5 5;
+    classDef output fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px;
+    classDef loss fill:#FFCDD2,stroke:#D32F2F,stroke-width:2px;
 
-#### 1. Ensemble方差合并公式错误
-**问题**: 原始代码使用了错误的方差合并公式，导致预测区间系统性偏窄
-```python
-# ❌ 错误: 计算的是ensemble估计量的方差
-var = Σ(wi² × σi²)
+    %% 输入层
+    Input[输入特征 Input Tensor]:::input -->|"形状: (Batch, 55)"| SplitPoint((分流点));
 
-# ✅ 正确: 计算的是未来观测的预测方差（全概率公式）
-var = Σ(wi × σi²) + Σ(wi × (μi - μ_ens)²)
+    %% 分流
+    SplitPoint --> GatingNetwork;
+    SplitPoint --> Dispatcher;
+
+    %% --- 门控网络 (Gating Network) ---
+    subgraph Gating_Mechanism ["门控机制 (Noisy Top-K Gating)"]
+        direction TB
+        GatingNetwork["门控线性层 (Linear)"]:::gateBlock;
+        Noise["添加噪声 (训练时)"]:::operation;
+        SoftmaxGate["Softmax Activation"]:::gateBlock;
+        TopK["Top-K Selection (k=1) & Normalize"]:::gateBlock;
+
+        GatingNetwork --"Logits (Batch, 2)"--> Noise --> SoftmaxGate --> TopK;
+        
+        %% 辅助损失路径
+        TopK -.->|"专家负载统计"| AuxLoss["辅助损失 (负载均衡)"]:::loss;
+    end
+
+    TopK --"稀疏门控权重 Gates\n(Batch, 2, 仅1个非零)"--> Dispatcher;
+    TopK --"门控权重用于加权"--> Combiner;
+
+    %% --- 路由与专家层 ---
+    Dispatcher["稀疏调度器 (Sparse Dispatcher)\n根据Gates路由样本"]:::operation;
+
+    subgraph Mixture_of_Experts ["混合专家层 (Mixture of Experts)"]
+        direction TB
+        
+        %% 专家 1
+        subgraph Expert_0 ["专家 0 (MLP)"]
+            direction LR
+            E0_L1["Linear (55→64)"]:::layer --> E0_ReLU["ReLU"]:::layer --> E0_L2["Linear (64→7)"]:::layer --> E0_Softmax["Softmax"]:::layer;
+        end
+        
+        %% 专家 2
+        subgraph Expert_1 ["专家 1 (MLP)"]
+            direction LR
+            E1_L1["Linear (55→64)"]:::layer --> E1_ReLU["ReLU"]:::layer --> E1_L2["Linear (64→7)"]:::layer --> E1_Softmax["Softmax"]:::layer;
+        end
+    end
+
+    %% 路由连接
+    Dispatcher --"路由样本子集 0"--> E0_L1;
+    Dispatcher --"路由样本子集 1"--> E1_L1;
+
+    %% 专家输出
+    E0_Softmax --"专家0输出 (Sub-Batch, 7)"--> Combiner;
+    E1_Softmax --"专家1输出 (Sub-Batch, 7)"--> Combiner;
+
+    %% --- 聚合与输出 ---
+    Combiner["加权组合 (Weighted Combination)\n∑ (Gate_i * Expert_i_Output)"]:::operation;
+    
+    Combiner --> FinalOutput["最终预测输出\n(概率分布)"]:::output;
+
+    %% 最终输出标注
+    FinalOutput --"形状: (Batch, 7)\nSum=1"--> End((结束));
+    AuxLoss -.->|"加入总损失"| End;
+
+    %% 注释
+    note[/"注：由于 k=1，对于每个样本，\n门控实际上是选择一个专家，\n组合阶段通过门控权重(接近1)传递该专家的输出。"/]:::operation
+    TopK -.-> note
 ```
-
-**影响**: Walk-Forward覆盖率从 68.3% 提升到 **97.9%**
-
-**原理**: 使用 Law of Total Variance
-- `E[Var(Y|Model)]`: 不同模型条件方差的期望（within-model uncertainty）
-- `Var[E(Y|Model)]`: 不同模型预测均值的方差（between-model uncertainty）
-
-#### 2. 测试集regime特征设置错误
-**问题**: 在CV和Walk-Forward验证中，测试集的regime特征没有根据其在原始序列中的绝对位置正确设置
-
-**修复**: 
-```python
-# 变点检测在训练集内得到相对位置 cp_idx
-# 需要根据测试集在原序列中的位置判断:
-if test_start >= cp_absolute:
-    test_cp_idx = 0  # 测试集完全在变点后
-elif test_start + h <= cp_absolute:
-    test_cp_idx = h  # 测试集完全在变点前
-else:
-    test_cp_idx = cp_absolute - test_start  # 变点在测试集内部
-```
-
-#### 3. 变点检测空间一致性
-**问题**: 主函数在原始空间检测变点，但模型在log空间训练
-
-**修复**: 统一在log空间检测变点
-```python
-cp_idx = detect_changepoint(ts_log, is_log_space=True)
-```
-
-### 性能对比
-
-| 指标 | 修复前 | 修复后 | 改善 |
-|------|--------|--------|------|
-| h=60天覆盖率 | 68.3% | **97.9%** | +29.6% |
-| h=30天覆盖率 | 61.3% | **96.7%** | +35.4% |
-| 平均覆盖率 | 64.8% | **97.3%** | +32.5% |
-| 预测标准误 | 0.131 | **0.218** | +66.6% |
-
-**结论**: 修复后的预测区间能够更准确地反映真实的预测不确定性
