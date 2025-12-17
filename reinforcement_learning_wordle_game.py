@@ -758,7 +758,7 @@ def merge_rl_metrics_into_csv(
 def main() -> None:
     base_dir = os.path.dirname(__file__)
     default_answers = os.path.join(base_dir, 'data', 'mcm_processed_data.csv')
-    default_ckpt = os.path.join(base_dir, 'models', 'wordle_a2c_ckpt')
+    default_ckpt = os.path.join(base_dir, 'models', 'wordle_a2c_ckpt_5000')
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', choices=['train', 'evaluate', 'train_evaluate'], default='train')
@@ -780,8 +780,8 @@ def main() -> None:
     parser.add_argument('--eval_limit', type=int, default=0)
     parser.add_argument('--eval_epsilon', type=float, default=0.1, help='评估时的探索率（ε-贪婪策略）')
     parser.add_argument('--eval_greedy', action='store_true', help='评估时使用贪婪策略（默认使用采样策略）')
-    parser.add_argument('--eval_out_csv', default=os.path.join(base_dir, 'data', 'rl_word_difficulty.csv'))
-    parser.add_argument('--merge_out_csv', default=os.path.join(base_dir, 'data', 'mcm_processed_data_with_rl.csv'))
+    parser.add_argument('--eval_out_csv', default=os.path.join(base_dir, 'data', '3rl_word_difficulty.csv'))
+    parser.add_argument('--merge_out_csv', default=os.path.join(base_dir, 'data', '3eerie_with_rl.csv'))
 
     args = parser.parse_args()
     set_seed(int(args.seed))
