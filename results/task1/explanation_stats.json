@@ -1,0 +1,20 @@
+{
+  "cp_date": "2022-10-05",
+  "cp_idx": 270,
+  "cp_drop_pct": 77.08198932536777,
+  "weekend_effect_pct": -4.997092865908665,
+  "holiday_effect_pct": -21.684262073463643,
+  "trend_change_pct": -16.683610104881122,
+  "volatility_change_pct": -97.63204564016478,
+  "seasonal_strength": 4896.504031041268,
+  "overall_std": 89262.92211713284,
+  "cv_metrics": {
+    "model_name": "SARIMA(1,1,2)x(1,0,1,7)",
+    "cv_rmse": 0.10622761941914949,
+    "cv_mase": 0.7022975297240687
+  },
+  "lag0_features_impact": 31.20822891358319,
+  "lag1_features_impact": 22.681130452816625,
+  "n_lag0_features": 5,
+  "n_lag1_features": 5
+}

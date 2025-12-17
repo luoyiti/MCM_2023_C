@@ -31,7 +31,6 @@ echo ""
 
 # 运行预测（使用 conda run 确保在正确环境中）
 echo "运行预测脚本..."
-echo "⏳ 预计时间：1-3 分钟"
 echo ""
 
 cd task2_distribution_prediction

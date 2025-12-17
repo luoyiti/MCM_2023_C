@@ -46,6 +46,11 @@ from viz_report import (
     generate_unified_comparison_report,
 )
 
+# 导入共享配置
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent / 'shared'))
+from config import TASK1_RESULTS, TASK1_PICTURES
+
 warnings.filterwarnings('ignore')
 
 
@@ -222,10 +227,16 @@ def prophet_forecast(ts_raw: pd.Series, df_dates: pd.Series, horizon: int = 60,
 
 def build_chronos_frame(ts_series: pd.Series, dates: pd.Series) -> pd.DataFrame:
     """构造Chronos输入"""
+    # 确保日期是连续的日期序列,避免频率推断失败
+    timestamps = pd.to_datetime(dates.values)
+    # 重新索引为连续日期序列,填充缺失值
+    continuous_index = pd.date_range(start=timestamps.min(), end=timestamps.max(), freq='D')
+    ts_reindexed = pd.Series(ts_series.values, index=timestamps).reindex(continuous_index, method='ffill')
+    
     return pd.DataFrame({
-        'timestamp': dates,
+        'timestamp': continuous_index,
         'item_id': 1,
-        'target': ts_series.values,
+        'target': ts_reindexed.values,
     })
 
 
@@ -510,8 +521,30 @@ def run_unified_comparison(ts_raw: pd.Series, df_dates: pd.Series,
 
 
 def load_data(path: Path) -> pd.DataFrame:
-    """加载数据"""
-    df = pd.read_excel(path, header=1)
+    """加载数据 (支持 Excel 和 CSV)"""
+    path_str = str(path)
+    
+    # 根据文件扩展名选择读取方式
+    if path_str.endswith('.csv'):
+        df = pd.read_csv(path)
+        # CSV 列名标准化 (小写转标题格式)
+        if 'date' in df.columns:
+            df.rename(columns={'date': 'Date'}, inplace=True)
+        if 'number_of_reported_results' in df.columns:
+            df.rename(columns={'number_of_reported_results': 'Number of  reported results'}, inplace=True)
+    elif path_str.endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(path, header=1)
+    else:
+        # 尝试自动检测
+        try:
+            df = pd.read_csv(path)
+            if 'date' in df.columns:
+                df.rename(columns={'date': 'Date'}, inplace=True)
+            if 'number_of_reported_results' in df.columns:
+                df.rename(columns={'number_of_reported_results': 'Number of  reported results'}, inplace=True)
+        except:
+            df = pd.read_excel(path, header=1)
+    
     df.columns = df.columns.str.strip()
     df['Date'] = pd.to_datetime(df['Date'])
     df = df.loc[:, ~df.columns.str.contains('^Unnamed', case=False)]
@@ -530,8 +563,11 @@ def main():
                        default=Path(__file__).parent.parent.parent / "data.xlsx",
                        help="输入数据文件")
     parser.add_argument("--output-dir", type=Path,
-                       default=Path(__file__).parent / "results",
+                       default=TASK1_RESULTS,
                        help="输出目录")
+    parser.add_argument("--pictures-dir", type=Path,
+                       default=TASK1_PICTURES,
+                       help="图表输出目录")
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -566,7 +602,7 @@ def main():
             ensemble_result=comparison_results_full['ensemble']['forecast'],
             prophet_result=comparison_results_full['prophet']['forecast'],
             chronos_result=comparison_results_full['chronos']['forecast'],
-            output_dir=args.output_dir,
+            output_dir=args.pictures_dir,
             history_window=None,
             suffix="_full"
         )
@@ -596,7 +632,7 @@ def main():
             ensemble_result=comparison_results_240['ensemble']['forecast'],
             prophet_result=comparison_results_240['prophet']['forecast'],
             chronos_result=comparison_results_240['chronos']['forecast'],
-            output_dir=args.output_dir,
+            output_dir=args.pictures_dir,
             history_window=240,
             suffix="_240"
         )
@@ -653,10 +689,13 @@ def main():
                 print(f"  Pinball:  {c['pinball']:.4f}")
     
     print(f"\n{'='*80}")
-    print(f"✓ All comparison results saved to: {args.output_dir}")
-    print("  - 6_three_way_comparison_full.png")
-    print("  - 6_three_way_comparison_240.png")
-    print("  - unified_comparison_report.txt")
+    print(f"✓ All comparison results saved")
+    print(f"{'='*80}")
+    print(f"  文本报告 → {args.output_dir}/")
+    print("    - unified_comparison_report.txt")
+    print(f"\n  可视化图表 → {args.pictures_dir}/")
+    print("    - 6_three_way_comparison_full.png")
+    print("    - 6_three_way_comparison_240.png")
     print(f"{'='*80}")
 
 

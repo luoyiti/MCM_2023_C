@@ -32,6 +32,10 @@ MORANDI_COLORS = {
     'Trend Change\n(Last 30d)': '#A5B5C4',  # 莫兰迪蓝 - 理性冷静
     'Trend Change': '#A5B5C4',  # 同一因素别名
     'Volatility Change': '#B8A7B2',  # 莫兰迪紫 - 神秘优雅
+    'Current Word\n(lag0)': '#E8C4A3',  # 莫兰迪浅橙 - 代表当天单词属性
+    'Previous Word\n(lag1)': '#D4B896',  # 莫兰迪米黄 - 代表前一天单词属性
+    'Word Attributes\n(Lagged Features)': '#D4B896',  # 兼容旧版本
+    'Word Attributes': '#D4B896',  # 同一因素别名
 }
 
 
@@ -263,7 +267,7 @@ def plot_changepoint_summary(ts_raw: pd.Series, changepoint_idx: int, output_dir
 
 def plot_factor_importance(explanation_stats: Dict, output_dir: Path):
     """
-    可视化各影响因素的相对重要性（新增）
+    可视化各影响因素的相对重要性（改进版：包含滞后特征）
     用于MCM论文的解释性分析部分
     使用莫兰迪色系，确保同一因素在不同图表中颜色一致
     """
@@ -275,6 +279,16 @@ def plot_factor_importance(explanation_stats: Dict, output_dir: Path):
         'Trend Change\n(Last 30d)': abs(explanation_stats.get('trend_change_pct', 0)),
         'Volatility Change': abs(explanation_stats.get('volatility_change_pct', 0)),
     }
+    
+    # 添加当天单词属性的影响（如果存在）
+    lag0_impact = explanation_stats.get('lag0_features_impact', None)
+    if lag0_impact and lag0_impact > 0:
+        factors['Current Word\n(lag0)'] = abs(lag0_impact)
+    
+    # 添加滞后单词属性的影响（如果存在）
+    lag1_impact = explanation_stats.get('lag1_features_impact', None)
+    if lag1_impact and lag1_impact > 0:
+        factors['Previous Word\n(lag1)'] = abs(lag1_impact)
     
     # 按重要性排序
     sorted_factors = dict(sorted(factors.items(), key=lambda x: x[1], reverse=True))

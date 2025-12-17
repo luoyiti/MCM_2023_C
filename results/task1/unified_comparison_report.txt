@@ -1,0 +1,61 @@
+======================================================================
+Unified Model Comparison Report: Ensemble vs Prophet vs Chronos
+======================================================================
+
+All models use the same evaluation criteria:
+  - CV settings: min_train=180, n_splits=3, horizon=30
+  - Confidence interval: 95% CI (converted to 90% for visualization)
+  - Evaluation metrics: RMSE, Coverage, MASE, Pinball, Winkler
+
+======================================================================
+
+【Full History Comparison】
+
+Prophet:
+  RMSE:     10871.5644
+  Coverage: 0.156 (target: 0.95)
+  MASE:     1.0467 (lower is better)
+  Pinball:  1652.2273 (lower is better)
+  Winkler:  66089.09 (lower is better)
+
+Chronos-2 Transformer:
+  RMSE:     3671.1095
+  Coverage: 0.933 (target: 0.95)
+  MASE:     0.2843 (lower is better)
+  Pinball:  438.1621 (lower is better)
+  Winkler:  17526.49 (lower is better)
+
+======================================================================
+【Recent 240 Days Comparison】
+
+Prophet:
+  RMSE:     2422.7260
+  Coverage: 0.817 (target: 0.95)
+  MASE:     0.8516 (lower is better)
+  Pinball:  254.5462 (lower is better)
+  Winkler:  10181.85 (lower is better)
+
+Chronos-2 Transformer:
+  RMSE:     2158.3500
+  Coverage: 0.783 (target: 0.95)
+  MASE:     0.7663 (lower is better)
+  Pinball:  319.8942 (lower is better)
+  Winkler:  12795.77 (lower is better)
+
+======================================================================
+Summary
+======================================================================
+
+[Full History] Best Model:
+  Best RMSE: Chronos (3671.1095)
+
+[Recent 240 Days] Best Model:
+  Best RMSE: Chronos (2158.3500)
+
+Note: Model architecture differences prevent perfectly fair comparison
+      - Ensemble: SARIMA-based with changepoint detection and log transform
+      - Prophet: Automatic changepoint/seasonality, uses log transform
+      - Chronos: Transformer architecture, no explicit feature engineering
+
+Ensemble metrics: See q1_final_clean.py output
+======================================================================
