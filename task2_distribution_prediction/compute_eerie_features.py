@@ -129,6 +129,7 @@ def compute_eerie_features():
         if len(positions) > 1:
             position_rarity += np.std(positions)
     features['position_rarity'] = position_rarity  # E在0,1,2位置，很罕见
+    print("position_rarity is " + str(position_rarity))
     
     # Hamming 邻居
     features['hamming_neighbors'] = 3  # 估计值
