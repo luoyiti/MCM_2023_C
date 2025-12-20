@@ -144,29 +144,46 @@ DIST_COLS = [
 
 
 # ==============================================================================
-# 训练超参数配置（保持与 Moe_Softmax.py 一致）
 # ==============================================================================
-LR = 5e-3
-WEIGHT_DECAY = 1e-4
-MAX_EPOCHS = 500
-PATIENCE = 50
-WEIGHT_MODE = "sqrt"
-
+# 模型超参数配置区域
+# ==============================================================================
+# 说明：以下参数已根据实验调优结果设置，可根据实际情况调整
+# ==============================================================================
 
 # ==============================================================================
-# MoE 超参数配置（保持与 Moe_Softmax.py 一致）
+# 一、基础训练超参数
 # ==============================================================================
-NUM_EXPERTS = 3
-HIDDEN_SIZE = 64
-TOP_K = 2
-AUX_COEF = 1e-3
+LR = 5e-3              # 学习率（Adam优化器），控制参数更新步长
+WEIGHT_DECAY = 1e-4    # 权重衰减（L2正则化系数），防止过拟合
+MAX_EPOCHS = 500       # 最大训练轮次
+PATIENCE = 50          # 早停耐心值：验证损失连续N轮无改善则停止训练
+WEIGHT_MODE = "sqrt"   # 样本权重计算模式："sqrt" 或 "log1p"，基于参与人数N
 
-# 让专家“差异更大”的正则项（默认很小；设为 0 可关闭）
-# 思路：惩罚不同专家参数向量的相似度（用 cosine^2），鼓励正交化/分化。
-EXPERT_DIVERSITY_COEF = 1e-4
+# ==============================================================================
+# 二、MoE 模型架构参数
+# ==============================================================================
+NUM_EXPERTS = 3        # 专家数量：MoE模型中并行的专家网络个数
+HIDDEN_SIZE = 64       # 隐藏层大小：每个专家MLP的隐藏层神经元数
+TOP_K = 2              # Top-K 路由：每个样本路由到的专家数量（必须 ≤ NUM_EXPERTS）
 
-# 是否启用“专家分化 vs 性能”轻量调参（默认关闭，避免跑很久）
-ENABLE_SPECIALIZATION_SEARCH = True
+# ==============================================================================
+# 三、损失函数权重参数（已优化）
+# ==============================================================================
+# 辅助损失系数：平衡专家负载均衡的重要性
+# 值越大，越强调专家使用率均匀；值过小可能导致"专家塌陷"（某些专家不被使用）
+AUX_COEF = 5e-3        # 经过调优的最优值：0.005
+
+# 专家分化正则项系数：鼓励不同专家学习不同的特征
+# 通过惩罚专家参数向量的余弦相似度，使专家更"差异化"
+# 设为 0 可关闭此正则项
+EXPERT_DIVERSITY_COEF = 1e-3  # 经过调优的最优值：0.001
+
+# ==============================================================================
+# 四、可选的专家分化调参（默认禁用，以节省训练时间）
+# ==============================================================================
+# 说明：如果启用，会在主训练前进行轻量级网格搜索，寻找最优的 AUX_COEF 和 EXPERT_DIVERSITY_COEF
+# 由于我们已经知道最优值，建议设为 False 以加快训练速度
+ENABLE_SPECIALIZATION_SEARCH = False
 SEARCH_MAX_TRIALS = 10
 SEARCH_EPOCH_SCALE = 0.4
 SEARCH_AUX_COEF_GRID = [1e-3, 5e-3, 1e-2]
@@ -175,65 +192,34 @@ SEARCH_OBJECTIVE_BETA_JS = 0.5  # JS 越大越好；目标里减去 beta * JS
 
 
 # ==============================================================================
-# 超参数网格搜索配置（新增：测试专家数量与 TOP-K 对模型性能的影响）
+# 五、Bootstrap 不确定性估计配置
 # ==============================================================================
-# 是否启用专家数量和 TOP-K 的网格搜索
-ENABLE_EXPERT_TOPK_SEARCH = True
-
-# 搜索空间：专家数量候选值
-# 可通过环境变量 MOE_EXPERT_GRID 覆盖，格式如 "2,3,4"
-EXPERT_NUM_GRID = [2, 3, 4, 6]
-
-# 搜索空间：TOP-K 候选值（注意：TOP-K 不能超过专家数量）
-# 可通过环境变量 MOE_TOPK_GRID 覆盖
-TOPK_GRID = [1, 2, 3]
-
-# 隐藏层大小候选值
-# 可通过环境变量 MOE_HIDDEN_GRID 覆盖
-HIDDEN_SIZE_GRID = [32, 64, 128]
-
-# 网格搜索训练轮次缩放（节省时间）
-GRID_SEARCH_EPOCH_SCALE = 0.5
-
-# 是否在网格搜索中也进行 Bootstrap 评估（耗时但更可靠）
-GRID_SEARCH_WITH_BOOTSTRAP = False
-
-# 网格搜索时的 Bootstrap 次数（若启用）
-GRID_SEARCH_BOOTSTRAP_B = 20
-
-# 环境变量覆盖网格搜索参数
-try:
-	_expert_grid_env = os.getenv("MOE_EXPERT_GRID")
-	if _expert_grid_env:
-		EXPERT_NUM_GRID = [int(x) for x in _expert_grid_env.split(",")]
-except Exception:
-	pass
-
-try:
-	_topk_grid_env = os.getenv("MOE_TOPK_GRID")
-	if _topk_grid_env:
-		TOPK_GRID = [int(x) for x in _topk_grid_env.split(",")]
-except Exception:
-	pass
-
-try:
-	_hidden_grid_env = os.getenv("MOE_HIDDEN_GRID")
-	if _hidden_grid_env:
-		HIDDEN_SIZE_GRID = [int(x) for x in _hidden_grid_env.split(",")]
-except Exception:
-	pass
-
+# Bootstrap 方法通过多次重采样训练集来估计预测的不确定性
+# 每次 bootstrap 都会训练一个新模型，最终统计预测分布的均值和置信区间
+BOOTSTRAP_B = 100              # Bootstrap 重采样次数（建议 ≥ 50，越多越准确但耗时）
+BOOTSTRAP_EPOCH_SCALE = 0.6    # Bootstrap 训练轮次缩放：实际轮次 = MAX_EPOCHS * 此值（节省时间）
+BOOTSTRAP_CI_LEVEL = 0.95      # 置信区间水平：0.95 表示 95% 置信区间
 
 # ==============================================================================
-# Bootstrap 配置（新增：最小侵入式）
+# 六、网格搜索配置（已禁用，仅保留变量定义以避免函数引用错误）
 # ==============================================================================
-BOOTSTRAP_B = 100
-BOOTSTRAP_EPOCH_SCALE = 0.6
-BOOTSTRAP_CI_LEVEL = 0.95
+# 注意：以下变量仅用于已禁用的网格搜索函数，实际不会使用
+# 如需启用网格搜索，请将 ENABLE_EXPERT_TOPK_SEARCH 设为 True（不推荐）
+ENABLE_EXPERT_TOPK_SEARCH = False
+EXPERT_NUM_GRID = [2, 3, 4, 6]          # 专家数量候选值（已禁用）
+TOPK_GRID = [1, 2, 3]                   # TOP-K候选值（已禁用）
+HIDDEN_SIZE_GRID = [32, 64, 128]        # 隐藏层大小候选值（已禁用）
+GRID_SEARCH_EPOCH_SCALE = 0.5           # 网格搜索训练轮次缩放（已禁用）
+GRID_SEARCH_WITH_BOOTSTRAP = False      # 网格搜索中是否使用Bootstrap（已禁用）
+GRID_SEARCH_BOOTSTRAP_B = 20            # 网格搜索的Bootstrap次数（已禁用）
 
-# 环境变量快速开关/降本（便于快速验证作图）：
-# MOE_ENABLE_SEARCH=0/1 关闭或开启轻量调参；MOE_BOOTSTRAP_B=10 减少bootstrap次数；
-# MOE_MAX_EPOCHS=100 覆盖训练轮次
+# ==============================================================================
+# 七、环境变量覆盖（可选）
+# ==============================================================================
+# 可通过环境变量快速调整参数，无需修改代码：
+#   MOE_ENABLE_SEARCH=0/1        : 禁用/启用专家分化调参
+#   MOE_BOOTSTRAP_B=50           : 设置 Bootstrap 次数
+#   MOE_MAX_EPOCHS=200           : 覆盖最大训练轮次
 try:
 	ENABLE_SPECIALIZATION_SEARCH = bool(int(os.getenv("MOE_ENABLE_SEARCH", str(int(ENABLE_SPECIALIZATION_SEARCH)))))
 except Exception:
@@ -359,10 +345,23 @@ def expert_output_separation_js(model: MoE, X_data: np.ndarray) -> float:
 
 
 def load_and_split_data():
-	"""加载数据、预处理并划分 train/val/test（70/15/15），并对特征做标准化。
-
-	新增：将 df 中单词列等于 HOLDOUT_WORD（默认 eerie）的样本抽出来，
-	不参与训练/验证/测试；最后用于“已训练模型”的预测与不确定性估计。
+	"""
+	加载数据、预处理并划分数据集
+	
+	功能说明：
+		1. 从CSV文件加载原始数据
+		2. 分离holdout样本（如"eerie"单词）用于后续预测验证
+		3. 特征预处理：缺失值填充、标准化
+		4. 标签预处理：归一化为概率分布（每行和为1）
+		5. 数据集划分：训练集70%、验证集15%、测试集15%
+		6. 对holdout数据应用相同的预处理和标准化
+	
+	返回：
+		训练集、验证集、测试集的特征、标签和样本权重（N），以及holdout数据包
+	
+	注意：
+		- 标准化器只在训练集上fit，避免数据泄露
+		- holdout数据不参与训练/验证/测试，仅用于模型预测展示
 	"""
 	df_raw = pd.read_csv(DATA_PATH)
 
@@ -495,76 +494,119 @@ def train_moe_with_params(
 	aux_coef: float,
 	expert_diversity_coef: float,
 ) -> tuple:
-	"""训练 MoE（完全复用 Moe_Softmax.py 的训练逻辑）。"""
+	"""
+	训练混合专家（MoE）模型的核心函数
+	
+	参数说明：
+		X_train, P_train: 训练集特征和标签分布（概率分布，每行和为1）
+		X_val, P_val: 验证集特征和标签分布
+		Wtr, Wva: 训练集和验证集的样本权重（基于参与人数N计算，可为None）
+		num_experts: 专家数量
+		hidden_size: 每个专家的隐藏层大小
+		top_k: Top-K路由（每个样本路由到的专家数）
+		aux_coef: 辅助损失系数（负载平衡）
+		expert_diversity_coef: 专家分化正则项系数
+	
+	返回：
+		model: 训练好的MoE模型（已加载最佳验证损失时的参数）
+		info: 训练信息字典，包含损失曲线、最佳轮次等
+	
+	训练流程：
+		1. 创建MoE模型（门控网络 + 多个专家MLP）
+		2. 使用Adam优化器
+		3. 迭代训练：
+		   - 前向传播：模型输出预测分布p_hat和辅助损失aux_loss
+		   - 计算总损失 = 主损失(交叉熵) + aux_coef * aux_loss + expert_diversity_coef * 分化惩罚
+		   - 反向传播更新参数
+		   - 在验证集上评估
+		   - 早停机制：验证损失连续PATIENCE轮无改善则停止
+		4. 恢复最佳验证损失时的模型参数
+	"""
 
+	# ========== 步骤1：创建MoE模型 ==========
 	model = MoE(
-		input_size=X_train.shape[1],
-		output_size=7,
-		num_experts=num_experts,
-		hidden_size=hidden_size,
-		noisy_gating=True,
-		k=top_k,
+		input_size=X_train.shape[1],    # 输入特征维度
+		output_size=7,                  # 输出维度：7个桶的概率分布
+		num_experts=num_experts,        # 专家数量
+		hidden_size=hidden_size,        # 每个专家的隐藏层大小
+		noisy_gating=True,              # 启用噪声门控（有助于探索）
+		k=top_k,                        # Top-K路由
 	).to(DEVICE)
 
+	# ========== 步骤2：创建优化器 ==========
 	opt = torch.optim.Adam(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 
+	# ========== 步骤3：数据转换为张量 ==========
 	Xtr = torch.tensor(X_train, device=DEVICE)
 	Ptr = torch.tensor(P_train, device=DEVICE)
 	Xva = torch.tensor(X_val, device=DEVICE)
 	Pva = torch.tensor(P_val, device=DEVICE)
 
-	best_state = None
-	best_val_loss = float("inf")
-	bad = 0
-	train_losses: list[float] = []
-	val_losses: list[float] = []
-	aux_losses: list[float] = []
+	# ========== 步骤4：训练状态跟踪 ==========
+	best_state = None              # 最佳模型参数（验证损失最低时）
+	best_val_loss = float("inf")   # 最佳验证损失
+	bad = 0                        # 验证损失无改善的连续轮次数
+	train_losses: list[float] = [] # 训练损失历史
+	val_losses: list[float] = []   # 验证损失历史
+	aux_losses: list[float] = []   # 辅助损失历史（负载平衡）
 
+	# ========== 步骤5：训练循环 ==========
 	for epoch in range(1, MAX_EPOCHS + 1):
+		# ----- 训练阶段 -----
 		model.train()
-		p_hat, aux_loss = model(Xtr)
+		p_hat, aux_loss = model(Xtr)  # 前向传播：p_hat是预测分布，aux_loss是负载平衡损失
 
+		# 计算主损失：软标签交叉熵（如果提供权重则加权）
 		if Wtr is None:
 			loss_main = soft_cross_entropy(p_hat, Ptr)
 		else:
 			loss_main = weighted_soft_cross_entropy(p_hat, Ptr, Wtr)
 
+		# 计算专家分化惩罚（鼓励专家差异化）
 		div_pen = expert_diversity_penalty(model)
+		
+		# 总损失 = 主损失 + 辅助损失 + 分化惩罚
 		loss = loss_main + aux_coef * aux_loss + expert_diversity_coef * div_pen
 
+		# 反向传播和参数更新
 		opt.zero_grad()
 		loss.backward()
 		opt.step()
 
+		# ----- 验证阶段 -----
 		model.eval()
 		with torch.no_grad():
-			p_val, aux_val = model(Xva)
+			p_val, aux_val = model(Xva)  # 验证集前向传播（无梯度计算）
+			
+			# 计算验证损失
 			if Wva is None:
 				val_main = soft_cross_entropy(p_val, Pva)
 			else:
 				val_main = weighted_soft_cross_entropy(p_val, Pva, Wva)
 			val_loss = val_main + AUX_COEF * aux_val
 
+		# 记录损失历史
 		train_losses.append(loss.item())
 		val_losses.append(val_loss.item())
 		aux_losses.append(aux_loss.item())
 
-		if val_loss.item() < best_val_loss - 1e-6:
+		# ----- 早停逻辑：保存最佳模型 -----
+		if val_loss.item() < best_val_loss - 1e-6:  # 验证损失有改善（至少改善1e-6）
 			best_val_loss = val_loss.item()
 			best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-			bad = 0
+			bad = 0  # 重置无改善计数
 		else:
-			bad += 1
+			bad += 1  # 验证损失无改善，计数+1
 
+		# 每50轮打印一次训练信息
 		if epoch % 50 == 0:
 			print(
 				f"[MoE] epoch={epoch:3d} train_loss={loss.item():.4f} "
 				f"val_loss={val_loss.item():.4f} aux_loss={aux_loss.item():.6f} "
 				f"div_pen={div_pen.item():.6f}"
 			)
-			# 额外打印一个“专家分化指标”（JS 越大越分化）
+			# 额外打印专家分化指标（JS距离，越大表示专家越差异化）
 			try:
-				# 用“当前模型的 num_experts”更新临时全局，保证指标函数的循环上限合理
 				global NUM_EXPERTS
 				old_ne = NUM_EXPERTS
 				NUM_EXPERTS = num_experts
@@ -574,13 +616,16 @@ def train_moe_with_params(
 			except Exception as e:
 				print(f"[MoE] expert_js_separation 计算失败: {e}")
 
+		# 早停：验证损失连续PATIENCE轮无改善则停止训练
 		if bad >= PATIENCE:
 			print(f"[MoE] Early stopping at epoch {epoch}.")
 			break
 
+	# ========== 步骤6：恢复最佳模型参数 ==========
 	if best_state:
 		model.load_state_dict(best_state)
 
+	# 返回模型和训练信息
 	info = {
 		"train_losses": train_losses,
 		"val_losses": val_losses,
@@ -723,8 +768,9 @@ def compute_metrics(P_pred: np.ndarray, P_test: np.ndarray) -> dict:
 
 
 # ==============================================================================
-# 专家数量与 TOP-K 网格搜索（新增功能）
+# 专家数量与 TOP-K 网格搜索（已禁用：请直接修改 NUM_EXPERTS, TOP_K, HIDDEN_SIZE 参数）
 # ==============================================================================
+# 注意：此功能已禁用，相关函数保留但不调用。如需启用，请将 ENABLE_EXPERT_TOPK_SEARCH 设为 True
 def expert_topk_grid_search(
 	X_train: np.ndarray,
 	P_train: np.ndarray,
@@ -1026,19 +1072,35 @@ def bootstrap_predict(
 	X_holdout: np.ndarray | None = None,
 	B: int = BOOTSTRAP_B,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-	"""\
-	使用 Bootstrap 对 MoE 模型进行不确定性估计。
-
-	做法：
-		重复 B 次：
-			1) 对训练集进行 bootstrap 重采样（有放回，size=n_train）
-			2) 训练一个 MoE 模型（不改结构与 loss）
-			3) 在同一个测试集上预测，得到一份分布 P_pred^(b)
-
-	返回:
-		- 若 X_holdout is None: P_test_all, shape (B, n_test, 7)
-		- 否则: (P_test_all, P_holdout_all)
-			P_holdout_all shape (B, n_holdout, 7)
+	"""
+	使用 Bootstrap 方法估计模型预测的不确定性
+	
+	Bootstrap原理：
+		通过多次重采样训练集并训练模型，收集多份预测结果，从而估计预测的不确定性
+		每个bootstrap样本都会训练一个独立的模型，最终的预测不确定性反映了模型对数据的敏感度
+	
+	流程：
+		重复B次：
+			1. 对训练集进行bootstrap重采样（有放回抽样，大小=n_train）
+			2. 在重采样后的训练集上训练一个MoE模型
+			3. 在同一测试集（和可选的holdout集）上预测，得到预测分布
+	
+	参数：
+		X_train, P_train, N_train: 训练集数据
+		X_val, P_val, N_val: 验证集数据（用于早停，所有bootstrap复用）
+		X_test: 测试集特征
+		X_holdout: 可选的holdout集特征（如"eerie"单词）
+		B: Bootstrap重采样次数
+	
+	返回：
+		若X_holdout为None: 
+			P_test_all, shape (B, n_test, 7) - B个模型在测试集上的预测
+		否则:
+			(P_test_all, P_holdout_all) - 测试集和holdout集的预测，shape分别为(B, n_test, 7)和(B, n_holdout, 7)
+	
+	注意：
+		- Bootstrap训练轮次会按BOOTSTRAP_EPOCH_SCALE缩放以节省时间
+		- 所有B个模型使用相同的验证集和早停逻辑
 	"""
 
 	P_test_all: list[np.ndarray] = []
@@ -1702,6 +1764,7 @@ def explain_expert_distributions(
 	输出：
 	- CSV：每个专家的样本数、占比、真实/预测均值分布、每桶 MAE
 	- PNG：样本占比柱状图 + 每专家真实vs预测均值分布图 + 合并曲线图
+	- 附加CSV：用于每个图作图的数据，便于后续可视化
 	"""
 	os.makedirs(output_dir, exist_ok=True)
 	model.eval()
@@ -1737,6 +1800,10 @@ def explain_expert_distributions(
 	df_exp.to_csv(csv_path, index=False)
 	print(f"[MoE] 专家分布解释CSV已保存: {csv_path}")
 
+	# ====== 保存 图1 用到的数据：专家/样本占比 ======
+	ratio_data_path = os.path.join(output_dir, f"moe_expert_sample_ratio_data_{prefix}.csv")
+	df_exp[["expert", "ratio"]].to_csv(ratio_data_path, index=False)
+	
 	# 图 1：样本占比
 	fig, ax = plt.subplots(figsize=(8, 4))
 	ax.bar(df_exp["expert"].astype(str), df_exp["ratio"], color="slateblue", edgecolor="black")
@@ -1749,6 +1816,21 @@ def explain_expert_distributions(
 	fig.savefig(ratio_path, dpi=250, bbox_inches="tight")
 	plt.close(fig)
 	print(f"[MoE] 专家样本占比图已保存: {ratio_path}")
+
+	# ====== 保存 图2 用到的数据：每个专家的真实与预测均值分布 ======
+	dist_means_rows = []
+	for e in range(NUM_EXPERTS):
+		row = df_exp[df_exp["expert"] == e].iloc[0]
+		for i, c in enumerate(DIST_COLS):
+			dist_means_rows.append({
+				"expert": e,
+				"bin": c,
+				"true_mean": float(row[f"true_mean_{c}"]),
+				"pred_mean": float(row[f"pred_mean_{c}"]),
+			})
+	dist_means_df = pd.DataFrame(dist_means_rows)
+	dist_means_path = os.path.join(output_dir, f"moe_expert_mean_distribution_data_{prefix}.csv")
+	dist_means_df.to_csv(dist_means_path, index=False)
 
 	# 图 2：每个专家的真实 vs 预测均值分布（逐专家分面）
 	n_bins = len(DIST_COLS)
@@ -1776,14 +1858,44 @@ def explain_expert_distributions(
 	plt.close(fig)
 	print(f"[MoE] 专家均值分布对比图已保存: {dist_path}")
 
-	# 图 3：合并曲线（不同专家的预测均值分布叠加）
+	# ====== 保存 图3 用到的数据：所有专家的预测均值和总体真实均值 ======
+	overall_true_mean = P_true.mean(axis=0)
+	curve_rows = []
+	for e in range(NUM_EXPERTS):
+		row = df_exp[df_exp["expert"] == e].iloc[0]
+		for i, c in enumerate(DIST_COLS):
+			curve_rows.append({
+				"kind": f"E{e}_pred",
+				"bin": c,
+				"value": float(row[f"pred_mean_{c}"])
+			})
+	for i, c in enumerate(DIST_COLS):
+		curve_rows.append({
+			"kind": "Overall_true_mean",
+			"bin": c,
+			"value": float(overall_true_mean[i])
+		})
+	curve_df = pd.DataFrame(curve_rows)
+	curve_data_path = os.path.join(output_dir, f"moe_expert_mean_distribution_curve_data_{prefix}.csv")
+	curve_df.to_csv(curve_data_path, index=False)
+	
+	# 图 3：合并曲线（不同专家的预测均值分布叠加，使用总体平均真实值）
+	# 计算总体平均真实值（所有测试样本的平均）
+	# overall_true_mean 已提前算好
+	
+	# 定义颜色方案（与图4保持一致）
+	colors_pred = ['steelblue', 'coral', 'seagreen', 'purple', 'orange', 'brown']
+	
 	fig, ax = plt.subplots(figsize=(12, 5))
+	# 绘制三个专家的预测均值分布
 	for e in range(NUM_EXPERTS):
 		row = df_exp[df_exp["expert"] == e].iloc[0]
 		pred_mean = np.array([row[f"pred_mean_{c}"] for c in DIST_COLS])
-		true_mean = np.array([row[f"true_mean_{c}"] for c in DIST_COLS])
-		ax.plot(x, pred_mean, marker="o", linewidth=2, label=f"E{e} pred")
-		ax.plot(x, true_mean, linestyle="--", alpha=0.8, label=f"E{e} true")
+		ax.plot(x, pred_mean, marker="o", linewidth=2, 
+				label=f"E{e} pred", color=colors_pred[e % len(colors_pred)])
+	# 绘制总体平均真实值（单条曲线）
+	ax.plot(x, overall_true_mean, linestyle="--", linewidth=2, alpha=0.8, 
+			color="black", label="Overall true mean", marker="x")
 	ax.set_xticks(x)
 	ax.set_xticklabels(DIST_COLS)
 	ax.set_xlabel("Bins (tries)")
@@ -1796,12 +1908,52 @@ def explain_expert_distributions(
 	fig.savefig(curve_path, dpi=250, bbox_inches="tight")
 	plt.close(fig)
 	print(f"[MoE] 专家均值分布曲线图已保存: {curve_path}")
+	
+	# ====== 保存 图4 用到的数据：本质同curve_data_path，直接引用 ======
+
+	# 图 4：平行坐标系图（与图3相同的数据，使用平行坐标系样式）
+	# 注意：使用与图3相同的颜色方案和数据结构
+	n_dims = len(DIST_COLS)
+	positions = np.arange(n_dims)  # 使用整数位置，每个维度一个位置
+	
+	fig, ax = plt.subplots(figsize=(12, 5))
+	
+	# 为每个专家绘制预测曲线（使用与图3相同的颜色）
+	for e in range(NUM_EXPERTS):
+		row = df_exp[df_exp["expert"] == e].iloc[0]
+		pred_mean = np.array([row[f"pred_mean_{c}"] for c in DIST_COLS])
+		ax.plot(positions, pred_mean, marker="o", linewidth=2, 
+				label=f"E{e} pred", color=colors_pred[e % len(colors_pred)])
+	
+	# 绘制总体平均真实值
+	ax.plot(positions, overall_true_mean, linestyle="--", linewidth=2, 
+			alpha=0.8, color="black", label="Overall true mean", marker="x")
+	
+	# 设置x轴刻度为维度标签（与图3完全一致）
+	ax.set_xticks(positions)
+	ax.set_xticklabels(DIST_COLS)
+	ax.set_xlabel("Bins (tries)")
+	ax.set_ylabel("Probability")
+	ax.set_title(f"Expert Mean Distribution Curves - Parallel Coordinates ({prefix})")
+	ax.grid(alpha=0.3)
+	ax.legend(ncol=2, fontsize=9)
+	
+	parallel_path = os.path.join(output_dir, f"moe_expert_mean_distribution_parallel_{prefix}.png")
+	fig.tight_layout()
+	fig.savefig(parallel_path, dpi=250, bbox_inches="tight")
+	plt.close(fig)
+	print(f"[MoE] 专家均值分布平行坐标系图已保存: {parallel_path}")
 
 	return {
 		"csv_path": csv_path,
 		"ratio_path": ratio_path,
 		"dist_path": dist_path,
 		"curve_path": curve_path,
+		"parallel_path": parallel_path,
+		# 附加输出用于外部作图
+		"ratio_data_path": ratio_data_path,
+		"dist_means_path": dist_means_path,
+		"curve_data_path": curve_data_path,
 	}
 
 
@@ -2088,15 +2240,25 @@ def write_bootstrap_report(path: str, base_metrics: dict, bootstrap_metrics: dic
 
 def main():
 	"""
-	主函数：执行完整的 MoE 模型训练、评估和 Bootstrap 不确定性估计流程。
+	主函数：执行完整的 MoE 模型训练、评估和 Bootstrap 不确定性估计流程
 	
-	执行步骤:
-	1. 加载并划分数据集
-	2. （可选）执行专家数量与 TOP-K 网格搜索
-	3. 使用最优配置训练单模型
-	4. 生成各种可视化图表
-	5. 执行 Bootstrap 不确定性估计
-	6. 保存所有结果和报告
+	执行流程：
+		1. 设置随机种子，确保结果可复现
+		2. 加载并划分数据集（训练/验证/测试，70/15/15）
+		3. （可选）专家分化调参：搜索最优的AUX_COEF和EXPERT_DIVERSITY_COEF
+		4. 使用最优配置训练单模型，并在测试集上评估
+		5. 生成可视化图表：训练曲线、误差分析、专家使用率等
+		6. 执行Bootstrap不确定性估计：多次重采样训练模型，收集预测分布
+		7. 计算和可视化不确定性：均值、标准差、置信区间
+		8. 保存所有结果：预测结果、图表、JSON报告、文本报告
+	
+	输出文件位置：
+		所有输出保存在 moe_bootstrap_output/ 目录下
+	
+	注意：
+		- 网格搜索已禁用，请直接在文件开头修改参数配置
+		- 建议将 ENABLE_SPECIALIZATION_SEARCH 设为 False 以加快训练速度
+		- Bootstrap 次数 BOOTSTRAP_B 可通过环境变量 MOE_BOOTSTRAP_B 快速调整
 	"""
 	global NUM_EXPERTS, HIDDEN_SIZE, TOP_K, AUX_COEF, EXPERT_DIVERSITY_COEF
 	
@@ -2152,36 +2314,15 @@ def main():
 			)
 
 	# ======================================================================
-	# 0.5) （可选）专家数量/TOP-K 网格搜索
+	# 0.5) 网格搜索已禁用，使用预设参数（NUM_EXPERTS, TOP_K, HIDDEN_SIZE）
 	# ======================================================================
-	# 注意：NUM_EXPERTS, TOP_K, HIDDEN_SIZE 已在函数开头声明为 global
-	if ENABLE_EXPERT_TOPK_SEARCH:
-		print("\n[Grid Search] 启用专家数量/TOP-K/隐藏层大小网格搜索...")
-		grid_results = expert_topk_grid_search(
-			X_train=X_train,
-			P_train=P_train,
-			N_train=N_train,
-			X_val=X_val,
-			P_val=P_val,
-			N_val=N_val,
-			X_test=X_test,
-			P_test=P_test,
-			output_dir=OUTPUT_DIR,
-		)
-		
-		# 更新全局超参数为网格搜索找到的最优值
-		if grid_results.get("best"):
-			best_config = grid_results["best"]
-			NUM_EXPERTS = int(best_config.get("num_experts", NUM_EXPERTS))
-			TOP_K = int(best_config.get("top_k", TOP_K))
-			HIDDEN_SIZE = int(best_config.get("hidden_size", HIDDEN_SIZE))
-			print(f"[Grid Search] 采用最优配置: num_experts={NUM_EXPERTS}, top_k={TOP_K}, hidden={HIDDEN_SIZE}")
-			print(f"  -> 最优 MAE: {best_config.get('mae', 'N/A'):.4f}")
-			print(f"  -> 最优 JS: {best_config.get('js_mean', 'N/A'):.4f}")
-		# 注意：plot_grid_search_results 已在 expert_topk_grid_search 内部调用
+	# 如需调整参数，请直接修改文件开头的配置：
+	#   NUM_EXPERTS = 3
+	#   TOP_K = 2
+	#   HIDDEN_SIZE = 64
 
 	# ======================================================================
-	# 1) 使用最优配置训练单模型 + 评估
+	# 1) 使用预设配置训练单模型 + 评估
 	# ======================================================================
 	print(f"\n[训练] 使用最终配置训练模型: num_experts={NUM_EXPERTS}, top_k={TOP_K}, hidden={HIDDEN_SIZE}")
 	Wtr = (

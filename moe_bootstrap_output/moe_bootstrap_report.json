@@ -1,51 +1,51 @@
 {
-  "model": "MoE + MLP + Softmax",
+  "model": "MoE + MLP + Softmax + Bootstrap",
+  "config": {
+    "num_experts": 3,
+    "hidden_size": 64,
+    "top_k": 2,
+    "aux_coef": 0.005,
+    "expert_diversity_coef": 0.001,
+    "lr": 0.005,
+    "weight_decay": 0.0001,
+    "max_epochs": 500,
+    "patience": 50
+  },
   "bootstrap": {
     "B": 100,
     "epoch_scale": 0.6,
     "ci_level": 0.95
   },
-  "config": {
-    "num_experts": 2,
-    "hidden_size": 128,
-    "top_k": 2,
-    "aux_coef": 0.005,
-    "lr": 0.005,
-    "weight_decay": 0.0001,
-    "max_epochs": 500,
-    "patience": 50,
-    "weight_mode": "sqrt"
-  },
   "metrics": {
     "single_model": {
-      "mae": 0.03231695666909218,
-      "rmse": 0.05932224914431572,
-      "mse": 0.003519129240885377,
-      "kl": 0.3935295343399048,
-      "js_mean": 0.10797932318646268,
-      "tv_distance": 0.11310934275388718,
-      "cos_sim": 0.9701504111289978,
-      "r2": -0.10086218267679214,
-      "max_error": 0.7425732612609863
+      "MAE": 0.03398820012807846,
+      "RMSE": 0.06138669699430466,
+      "MSE": 0.0037683267146348953,
+      "KL_Div": 0.4002191722393036,
+      "JS_Div": 0.11624993359039318,
+      "Total_Variation": 0.11895870417356491,
+      "L1_Norm": 0.23791740834712982,
+      "EMD": 0.026658854346287817,
+      "Cosine_Sim": 0.9675384163856506,
+      "R2_Score": -0.21613363921642303,
+      "Max_Error": 0.7425732612609863
     },
     "bootstrap_mean": {
-      "mae": 0.03047044947743416,
-      "rmse": 0.05385906621813774,
-      "mse": 0.002900799037888646,
-      "kl": 0.17832091450691223,
-      "js_mean": 0.10393597817463993,
-      "tv_distance": 0.1066465750336647,
-      "cos_sim": 0.9727055430412292,
-      "r2": 0.04985072836279869,
-      "max_error": 0.6340720653533936
+      "MAE": 0.03116920031607151,
+      "RMSE": 0.053194109350442886,
+      "MSE": 0.0028296131640672684,
+      "KL_Div": 0.1795780062675476,
+      "JS_Div": 0.10816544654985073,
+      "Total_Variation": 0.10909219086170197,
+      "L1_Norm": 0.21818438172340393,
+      "EMD": 0.024485435192694475,
+      "Cosine_Sim": 0.972415030002594,
+      "R2_Score": 0.032829735428094864,
+      "Max_Error": 0.5981224775314331
     }
   },
-  "uncertainty": {
-    "confidence_score_mean": 61.99459457397461,
-    "confidence_score_std": 14.085166931152344,
-    "confidence_score_min": 9.73630428314209,
-    "confidence_score_max": 96.0816650390625,
-    "per_sample_std_mean_mean": 0.018136348575353622,
-    "per_sample_std_mean_std": 0.012134457007050514
+  "training": {
+    "best_epoch": 37,
+    "best_val_loss": 1.5890848636627197
   }
 }

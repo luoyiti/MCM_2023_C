@@ -1,0 +1,58 @@
+# Dataset files that should not be committed
+data/glove.6B/glove.6B.50d.txt
+data/glove.6B/glove.6B.100d.txt
+data/glove.6B/glove.6B.200d.txt
+data/glove.6B/glove.6B.300d.txt
+data/glove.6B/
+data/allowed.txt
+data/SUBTLEX-US frequency list with PoS and Zipf information.xlsx
+data/correlation_matrix.xlsx
+data/lasso_feature_importance.xlsx
+data/mcm_processed_data copy.csv
+data/mcm_processed_data_with_rl.csv
+data/rl_word_difficulty.csv
+data/sum_manly_results.csv
+data/backups/
+datasets/
+
+# Result files and outputs
+sum_manly_results.csv
+sum_manly_results_entropy.csv
+sum_manly_results_freq.csv
+results/
+moe_bootstrap_output/
+Q1/results/
+forcasting/moe_dirichlet_output/
+单词属性/*.png
+单词属性/analysis_report.txt
+
+# Model checkpoints and backups
+models/backups/
+models/wordle_a2c_ckpt/
+backups/
+
+# IDE files
+.idea/csv-editor.xml
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+subtlex.js
+*.tmp
+*.temp
